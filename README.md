@@ -1,10 +1,10 @@
-# Party Progressor
+# Tribal Quest
 
 Cooperative Coworld expedition RPG where players choose tank, DPS, or healer
 roles, fight biome-specific monsters, rescue villagers, gather supplies, and
 push an endless party frontier to the right.
 
-Party Progressor uses the BitWorld sprite protocol on the canonical `/player`
+Tribal Quest uses the BitWorld sprite protocol on the canonical `/player`
 and `/global` websocket routes. The browser player client is served at
 `/client/player`, and the global bird's-eye observer is served at
 `/client/global`.
@@ -14,7 +14,7 @@ and `/global` websocket routes. The browser player client is served at
 ```sh
 nimble install -d
 nimble build
-./party_progressor --address:0.0.0.0 --port:8080
+./tribal_quest --address:0.0.0.0 --port:8080
 ```
 
 Open:
@@ -27,8 +27,8 @@ For local source-checkout work without installing the package:
 
 ```sh
 BITWORLD_PATH=${BITWORLD_PATH:-$(pwd)/../bitworld}
-nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH -o:out/party_progressor src/party_progressor.nim
-./out/party_progressor --address:127.0.0.1 --port:2000
+nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH -o:out/tribal_quest src/tribal_quest.nim
+./out/tribal_quest --address:127.0.0.1 --port:2000
 ```
 
 ## Bot
@@ -37,8 +37,8 @@ The bundled Nim bot is `konrad`.
 
 ```sh
 BITWORLD_PATH=${BITWORLD_PATH:-$(pwd)/../bitworld}
-nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH -o:out/party_progressor_konrad players/konrad/konrad.nim
-./out/party_progressor_konrad --address:127.0.0.1 --port:2000 --name=konrad
+nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH -o:out/tribal_quest_konrad players/konrad/konrad.nim
+./out/tribal_quest_konrad --address:127.0.0.1 --port:2000 --name=konrad
 ```
 
 JavaScript, Python, and Go ports of Konrad live under `players/`.
@@ -51,8 +51,8 @@ cooldowns, role, biome, weather, and effect state.
 
 ## Project Layout
 
-- `src/party_progressor.nim` starts the Coworld server.
-- `src/party_progressor/` contains the simulation, sprite renderer, and server.
+- `src/tribal_quest.nim` starts the Coworld server.
+- `src/tribal_quest/` contains the simulation, sprite renderer, and server.
 - `data/` contains game sprites and generated monster assets.
 - `players/` contains bundled player bots.
 - `tests/tests.nim` contains the focused gameplay and sprite protocol checks.

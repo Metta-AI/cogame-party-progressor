@@ -1,10 +1,10 @@
 import std/[json, parseopt, strutils]
 import bitworld/cogame_runtime
 import jsony
-import bitworld/protocol, party_progressor/server
+import bitworld/protocol, tribal_quest/server
 
 type
-  PartyProgressorError = object of CatchableError
+  TribalQuestError = object of CatchableError
 
   RunConfig = object
     address: string
@@ -24,7 +24,7 @@ proc readConfigStrings(node: JsonNode, name: string, values: var seq[string]) =
   let items = node[name]
   if items.kind != JArray:
     raise newException(
-      PartyProgressorError,
+      TribalQuestError,
       "Config field " & name & " must be an array."
     )
   values.setLen(0)
@@ -32,7 +32,7 @@ proc readConfigStrings(node: JsonNode, name: string, values: var seq[string]) =
     let item = items[i]
     if item.kind != JString:
       raise newException(
-        PartyProgressorError,
+        TribalQuestError,
         "Config field " & name & "[" & $i & "] must be a string."
       )
     values.add(item.getStr())
@@ -44,7 +44,7 @@ proc readConfigString(node: JsonNode, name: string, value: var string) =
   let item = node[name]
   if item.kind != JString:
     raise newException(
-      PartyProgressorError,
+      TribalQuestError,
       "Config field " & name & " must be a string."
     )
   value = item.getStr()
@@ -56,7 +56,7 @@ proc readConfigInt(node: JsonNode, name: string, value: var int) =
   let item = node[name]
   if item.kind != JInt:
     raise newException(
-      PartyProgressorError,
+      TribalQuestError,
       "Config field " & name & " must be an integer."
     )
   value = item.getInt()
@@ -105,7 +105,7 @@ proc validateConfigFields(node: JsonNode) =
   for name, _ in node.pairs:
     if not name.isKnownConfigField():
       raise newException(
-        PartyProgressorError,
+        TribalQuestError,
         "Unknown config field: " & name
       )
 
@@ -118,11 +118,11 @@ proc update(config: var RunConfig, jsonText: string) =
     node = fromJson(jsonText)
   except jsony.JsonError as e:
     raise newException(
-      PartyProgressorError,
+      TribalQuestError,
       "Could not parse config JSON: " & e.msg
     )
   if node.kind != JObject:
-    raise newException(PartyProgressorError, "Config must be a JSON object.")
+    raise newException(TribalQuestError, "Config must be a JSON object.")
   node.validateConfigFields()
   node.readConfigString("address", config.address)
   node.readConfigInt("port", config.port)
@@ -149,7 +149,7 @@ proc requireOptionValue(name, value: string) =
   ## Raises when a CLI option is missing its value.
   if value.len == 0:
     raise newException(
-      PartyProgressorError,
+      TribalQuestError,
       "Option --" & name & " requires a value."
     )
 
@@ -160,7 +160,7 @@ proc parseOptionInt(name, value: string): int =
     result = parseInt(value)
   except ValueError:
     raise newException(
-      PartyProgressorError,
+      TribalQuestError,
       "Option --" & name & " must be an integer."
     )
 
@@ -168,12 +168,12 @@ proc validate(config: RunConfig) =
   ## Raises when a run config value is outside the supported range.
   if config.maxTicks < 0:
     raise newException(
-      PartyProgressorError,
+      TribalQuestError,
       "Config field maxTicks must be non-negative."
     )
   if config.maxGames < 0:
     raise newException(
-      PartyProgressorError,
+      TribalQuestError,
       "Config field maxGames must be non-negative."
     )
 
@@ -248,11 +248,11 @@ when isMainModule:
         key.requireOptionValue(val)
         configPath = val
       else:
-        raise newException(PartyProgressorError, "Unknown option: --" & key)
+        raise newException(TribalQuestError, "Unknown option: --" & key)
     of cmdShortOption:
-      raise newException(PartyProgressorError, "Unknown option: -" & key)
+      raise newException(TribalQuestError, "Unknown option: -" & key)
     of cmdArgument:
-      raise newException(PartyProgressorError, "Unexpected argument: " & key)
+      raise newException(TribalQuestError, "Unexpected argument: " & key)
     of cmdEnd:
       discard
   if configPath.len > 0:

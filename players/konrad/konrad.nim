@@ -2,7 +2,7 @@ import
   std/[heapqueue, options, os, parseopt, random, strutils, times],
   supersnappy, whisky,
   bitworld/protocol,
-  party_progressor/sim
+  tribal_quest/sim
 
 const
   PlayerDefaultPort = 2000
@@ -2438,7 +2438,7 @@ proc runBot(
   chat = false,
   maxSteps = 0
 ) =
-  ## Connects to the Party Progressor player endpoint.
+  ## Connects to the Tribal Quest player endpoint.
   let engineWsUrl = getEnv("COWORLD_PLAYER_WS_URL")
   let url =
     if host.startsWith("ws://") or host.startsWith("wss://"):

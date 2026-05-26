@@ -1,15 +1,15 @@
-# Party Progressor Current State And Next Plan
+# Tribal Quest Current State And Next Plan
 
 ## Summary
 
-Party Progressor is now a cooperative side-scrolling expedition RPG. Players
+Tribal Quest is now a cooperative side-scrolling expedition RPG. Players
 choose tank, DPS, or healer roles, push right through escalating biome bands,
 carry and spend expedition supplies, build camps, survive weather and terrain
 pressure, and finish by defeating the Gate Titan and holding the final gate.
 
 TribalCog remains an inspiration source for runtime PNG art, biome identity,
 terrain/weather ideas, wildlife, resources, and settlement-sim texture, but
-Party Progressor is not a TribalCog clone. It should feel like the
+Tribal Quest is not a TribalCog clone. It should feel like the
 adventure-mode counterpart to a settlement sim: one party on the ground, making
 local tactical decisions and turning shared survival into visible expedition
 progress.
@@ -26,7 +26,7 @@ set to 44 species, added cone, line, trap, support, and swarm attack families,
 reduced excess water while preserving long river chokepoints, and turned rescue
 guides into temporary followers who thank the party when brought back to camp.
 The follow-up asset pass makes the current imagegen workflow the preferred
-source for new Party Progressor monster art, keeps TribalCog TSV prompts as a
+source for new Tribal Quest monster art, keeps TribalCog TSV prompts as a
 fallback path, and wires 12 project-local generated monster sprites into the
 runtime before falling back to borrowed TribalCog wolf/goblin/bear silhouettes.
 
@@ -83,7 +83,7 @@ reduced status drag, and protection from that biome's survival pressure.
 
 ## Current Runtime Contract
 
-Party Progressor's supported player surface is sprite protocol on the canonical
+Tribal Quest's supported player surface is sprite protocol on the canonical
 `/player` route.
 
 - Player route: `/player`.
@@ -95,7 +95,7 @@ Party Progressor's supported player surface is sprite protocol on the canonical
 - Player chat: sprite protocol `0x81` length-prefixed printable ASCII.
 - Viewport: map layer `0x05` is authoritative; clients and bots must read it.
 - Player viewport: 11 by 11 native tiles, 352 by 352 pixels.
-- There is no separate Party Progressor `/sprite_player` player surface.
+- There is no separate Tribal Quest `/sprite_player` player surface.
 
 The Coworld player runner contract is:
 
@@ -207,7 +207,7 @@ New tactical families add encounter shape:
 
 ## Current Items, Camps, And Objectives
 
-Party Progressor uses a stacked carry inventory plus separate equipment. The
+Tribal Quest uses a stacked carry inventory plus separate equipment. The
 player observation tiles carried inventory along the lower HUD row with numeric
 count badges where relevant. Armor is equipped in head, chest, and trinket
 slots, and the top-right player HUD shows equipped armor as icons.
@@ -313,7 +313,7 @@ so coordination is visible in the 11 by 11 observation window.
 
 ## Current Bots And Tests
 
-Konrad is the current Party Progressor bot. It parses sprite-v1 packets from
+Konrad is the current Tribal Quest bot. It parses sprite-v1 packets from
 `/player`, reads the dynamic viewport, identifies itself through the selected
 player sprite, and uses semantic labels instead of raw pixel guesses where
 possible.
@@ -405,7 +405,7 @@ Acceptance signal:
 
 ### 3. Find The Fun Retrenchment
 
-Target behavior: Party Progressor should first be an understandable expedition:
+Target behavior: Tribal Quest should first be an understandable expedition:
 choose a role, push right, rescue villagers, cross chokepoints, survive one
 clear problem at a time, and bring the party home stronger. Complexity should
 earn its screen space.
@@ -480,7 +480,7 @@ Acceptance signal:
 
 ### 6. Packaging And Docs Hygiene
 
-Target behavior: Party Progressor should remain easy to run, test, and submit
+Target behavior: Tribal Quest should remain easy to run, test, and submit
 through Coworld infrastructure.
 
 Implementation direction:
@@ -514,8 +514,8 @@ Build and run locally:
 
 ```sh
 BITWORLD_PATH=${BITWORLD_PATH:-$(pwd)/../bitworld}
-nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH -o:out/party_progressor src/party_progressor.nim
-./out/party_progressor --address:127.0.0.1 --port:2000
+nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH -o:out/tribal_quest src/tribal_quest.nim
+./out/tribal_quest --address:127.0.0.1 --port:2000
 ```
 
 Open the player client:

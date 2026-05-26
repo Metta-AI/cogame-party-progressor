@@ -7,7 +7,7 @@ const
   ArtCellSize* = 32
   WorldTileSize* = ArtCellSize
   SheetTileSize* = ArtCellSize
-  GameName* = "party_progressor"
+  GameName* = "tribal_quest"
   GameVersion* = "1"
   ReplayMagic* = "BITWORLD"
   ReplayFormatVersion* = 3'u16

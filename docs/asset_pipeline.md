@@ -1,13 +1,13 @@
-# Party Progressor Asset Pipeline
+# Tribal Quest Asset Pipeline
 
 Date: 2026-05-25
 Status: Active
 
 ## Source Of Truth
 
-Party Progressor now treats project-local imagegen assets as the preferred
+Tribal Quest now treats project-local imagegen assets as the preferred
 monster art path. TribalCog art remains useful inspiration and runtime fallback,
-but newly added Party Progressor monsters should live under:
+but newly added Tribal Quest monsters should live under:
 
 - `data/generated/monsters/*.png`: checked-in runtime 32x32 sprites.
 - `data/prompts/monster_assets.tsv`: prompt rows compatible with the older
@@ -70,5 +70,5 @@ output.png<TAB>prompt<TAB>source=imagegen
 If imagegen is unavailable, the rows can be copied into the old TribalCog
 `scripts/generate_assets.py --postprocess` flow or adapted to the newer games
 ArtGen folder tree. That fallback should still promote final assets back into
-Party Progressor's `data/generated/monsters/` namespace rather than depending
+Tribal Quest's `data/generated/monsters/` namespace rather than depending
 on a shared TribalCog folder at runtime.

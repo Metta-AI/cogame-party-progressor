@@ -1148,9 +1148,9 @@ proc runServerLoop*(
 
     runFrameLimiter(lastTick)
 
-when defined(partyProgressorServerSelfTest):
+when defined(tribalQuestServerSelfTest):
   proc testScoreFilePreservesLastPlayerSnapshot() =
-    let path = getTempDir() / "party_progressor_score_selftest.json"
+    let path = getTempDir() / "tribal_quest_score_selftest.json"
     if fileExists(path):
       removeFile(path)
     let oldDir = getCurrentDir()
@@ -1192,4 +1192,4 @@ when defined(partyProgressorServerSelfTest):
     removeFile(path)
 
   testScoreFilePreservesLastPlayerSnapshot()
-  echo "Party Progressor server score tests passed"
+  echo "Tribal Quest server score tests passed"

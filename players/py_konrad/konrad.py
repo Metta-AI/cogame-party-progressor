@@ -1455,7 +1455,7 @@ def run_bot(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Konrad Party Progressor bot.")
+    parser = argparse.ArgumentParser(description="Konrad Tribal Quest bot.")
     parser.add_argument("--address", default=DefaultHost)
     parser.add_argument("--port", type=int, default=PlayerDefaultPort)
     parser.add_argument("--name", default="konrad")

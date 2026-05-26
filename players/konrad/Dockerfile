@@ -25,8 +25,8 @@ https://github.com/treeform/nimby/releases/download/0.1.26/nimby-Linux-ARM64; \
 
 ENV PATH="/root/.nimby/nim/bin:$PATH"
 
-WORKDIR /workspace/cogame-party-progressor
-COPY party_progressor.nimble .
+WORKDIR /workspace/cogame-tribal-quest
+COPY tribal_quest.nimble .
 RUN nimble refresh && \
   nimble install -y https://github.com/Metta-AI/bitworld.git && \
   nimble install -y --depsOnly
@@ -49,7 +49,7 @@ RUN apt-get update && \
   apt-get install -y --no-install-recommends ca-certificates && \
   rm -rf /var/lib/apt/lists/*
 
-WORKDIR /workspace/cogame-party-progressor/players/konrad
+WORKDIR /workspace/cogame-tribal-quest/players/konrad
 COPY --from=build /bin/konrad /bin/konrad
 
 CMD ["/bin/konrad"]

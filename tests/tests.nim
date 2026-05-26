@@ -4,14 +4,14 @@ import
   supersnappy,
   bitworld/protocol,
   bitworld/server,
-  party_progressor/global,
-  party_progressor/sim
+  tribal_quest/global,
+  tribal_quest/sim
 
 const
   RootDir = currentSourcePath.parentDir.parentDir
-  ObservationPreviewDir = RootDir / "out" / "party_progressor_observations"
+  ObservationPreviewDir = RootDir / "out" / "tribal_quest_observations"
 
-proc initPartyProgressorForTest(seed = 1234): SimServer =
+proc initTribalQuestForTest(seed = 1234): SimServer =
   let previousDir = getCurrentDir()
   setCurrentDir(RootDir)
   try:
@@ -42,7 +42,7 @@ proc firstForwardPickup(sim: SimServer, kind: PickupKind): Pickup =
   raise newException(ValueError, "missing forward pickup: " & $kind)
 
 proc testSafeOriginAndReusableRoles() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   let playerIndex = sim.addPlayer("player1")
   doAssert sim.players[playerIndex].x < SafeZoneRightPixels,
     "player should spawn inside the safe origin"
@@ -85,7 +85,7 @@ proc testSafeOriginAndReusableRoles() =
     "origin role gear must stay reusable for unarmed players"
 
 proc testFrontierScoreIsShared() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   let playerIndex = sim.addPlayer("player1")
   sim.players[playerIndex].x = SafeZoneRightPixels + 5 * WorldTileSize
   sim.players[playerIndex].y = (WorldHeightTiles div 2) * WorldTileSize
@@ -325,7 +325,7 @@ proc parseSpriteProtocolPacket(packet: openArray[uint8]): ParsedPacket =
       raise newException(ValueError, "unknown sprite protocol message")
 
 proc assertCurrentSpriteV1Packet(packet: openArray[uint8]) =
-  ## Validates Party Progressor emits the current shared sprite_v1 wire format.
+  ## Validates Tribal Quest emits the current shared sprite_v1 wire format.
   var
     offset = 0
     sawSprite = false
@@ -393,7 +393,7 @@ proc assertCurrentSpriteV1Packet(packet: openArray[uint8]) =
     else:
       raise newException(
         ValueError,
-        "Party Progressor /player emitted reserved sprite_v1 server message " &
+        "Tribal Quest /player emitted reserved sprite_v1 server message " &
           $messageType
       )
 
@@ -619,7 +619,7 @@ proc writeObservationPreview(
   observation.observationImage().writeFile(result)
 
 proc testPlayerDropsCarriedCoinsOnDeath() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -666,7 +666,7 @@ proc testPlayerDropsCarriedCoinsOnDeath() =
     "bleed-out should drop one coin pickup worth all carried coins"
 
 proc testDownedPlayerCanBeRescuedByNearbyAlly() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -709,7 +709,7 @@ proc testDownedPlayerCanBeRescuedByNearbyAlly() =
     "rescue should prevent the bleed-out coin drop"
 
 proc testCampActivationDoesNotHalfReviveDownedPlayers() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -744,7 +744,7 @@ proc testCampActivationDoesNotHalfReviveDownedPlayers() =
   doAssert sim.players[downedIndex].lives == 0
 
 proc testMobTelegraphsBeforeLunging() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -772,7 +772,7 @@ proc testMobTelegraphsBeforeLunging() =
     "telegraphing mob should visibly bounce"
 
 proc testMobChasesNearbyPlayers() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -810,7 +810,7 @@ proc testPlayerSpeedIsSlower() =
   doAssert HealerMovementSpeedPercent > TankMovementSpeedPercent
 
 proc testBiomeGroundsAndWeather() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   let
     swampTx = firstTileForBiome(BiomeSwamp)
     desertTx = firstTileForBiome(BiomeDesert)
@@ -834,7 +834,7 @@ proc testProceduralExpeditionRepeatsBiomeSegments() =
         tx = SafeZoneRightTiles + segment * ExpeditionBiomeSpanTiles
       doAssert biomeForTileX(tx) == biomeForSegmentIndex(zone),
         "rightward expedition should repeat all biome bands in each cycle"
-  let sim = initPartyProgressorForTest()
+  let sim = initTribalQuestForTest()
   doAssert sim.landmarks.countIt(it.kind == LandmarkWaystation) ==
     BiomeCount * ExpeditionCycleCount
   doAssert sim.landmarks.anyIt(
@@ -843,7 +843,7 @@ proc testProceduralExpeditionRepeatsBiomeSegments() =
   ), "final gate should sit far beyond the first biome pass"
 
 proc testProceduralLandformsAndVisibilityShadow() =
-  let seeded = initPartyProgressorForTest()
+  let seeded = initTribalQuestForTest()
   let waterTiles = seeded.groundKinds.countIt(it == GroundWater)
   doAssert waterTiles > WorldHeightTiles,
     "procedural expedition should contain lakes and rivers"
@@ -915,7 +915,7 @@ proc testProceduralLandformsAndVisibilityShadow() =
   doAssert forestBlockers > ExpeditionBiomeSpanTiles,
     "forest segments should grow dense off-route terrain and occluders"
 
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -949,7 +949,7 @@ proc testProceduralLandformsAndVisibilityShadow() =
     "visibility shadow sprite should contain non-transparent pixels"
 
 proc testRiverCrossingAmbushesTriggerOnce() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   doAssert sim.riverCrossings.len > 0,
     "procedural rivers should expose ambush crossings"
   sim.mobs.setLen(0)
@@ -981,7 +981,7 @@ proc testRiverCrossingAmbushesTriggerOnce() =
     "river ambushes should only trigger once per crossing"
 
 proc testEarlyBiomeForageAndRallyTactics() =
-  var forestSim = initPartyProgressorForTest()
+  var forestSim = initTribalQuestForTest()
   forestSim.clearTerrain()
   forestSim.mobs.setLen(0)
   forestSim.pickups.setLen(0)
@@ -1017,7 +1017,7 @@ proc testEarlyBiomeForageAndRallyTactics() =
   doAssert "status forage" notin forageLabels
   doAssert "effect aura forage" notin forageLabels
 
-  var plainsSim = initPartyProgressorForTest()
+  var plainsSim = initTribalQuestForTest()
   plainsSim.clearTerrain()
   plainsSim.mobs.setLen(0)
   plainsSim.pickups.setLen(0)
@@ -1065,7 +1065,7 @@ proc testEarlyBiomeForageAndRallyTactics() =
     "plains rally cooldown gain should require a nearby ally"
 
 proc testSpritePlayerViewportAndBiomeBackground() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   let playerIndex = sim.addPlayer("player1")
   sim.clearTerrain()
   sim.fillGround(GroundGrass, BiomeDesert)
@@ -1097,7 +1097,7 @@ proc testSpritePlayerViewportAndBiomeBackground() =
   doAssert mapSprite.pixels[pixelOffset + 3].uint8 == color.a
 
 proc testSpriteProtocolWeatherOverlays() =
-  var playerSim = initPartyProgressorForTest()
+  var playerSim = initTribalQuestForTest()
   playerSim.clearTerrain()
   playerSim.mobs.setLen(0)
   playerSim.pickups.setLen(0)
@@ -1119,7 +1119,7 @@ proc testSpriteProtocolWeatherOverlays() =
   doAssert "weather snow" in playerLabels,
     "sprite player observations should show snow weather overlays"
 
-  var globalSim = initPartyProgressorForTest()
+  var globalSim = initTribalQuestForTest()
   globalSim.clearTerrain()
   globalSim.mobs.setLen(0)
   globalSim.pickups.setLen(0)
@@ -1140,7 +1140,7 @@ proc assertSurvivalPressureObservation(
   expectedPressure: SurvivalPressureKind,
   expectedSpriteLabel: string
 ) =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -1203,7 +1203,7 @@ proc testSpriteProtocolShowsSurvivalPressureAffordances() =
     "status fog"
   )
 
-  var groupedSim = initPartyProgressorForTest()
+  var groupedSim = initTribalQuestForTest()
   groupedSim.clearTerrain()
   groupedSim.mobs.setLen(0)
   groupedSim.pickups.setLen(0)
@@ -1224,7 +1224,7 @@ proc testSpriteProtocolShowsSurvivalPressureAffordances() =
   doAssert groupedSim.survivalPressureKind(soloIndex) == SurvivalSafe,
     "nearby allies should clear fog survival pressure before slow lands"
 
-  var shelteredSim = initPartyProgressorForTest()
+  var shelteredSim = initTribalQuestForTest()
   shelteredSim.clearTerrain()
   shelteredSim.mobs.setLen(0)
   shelteredSim.pickups.setLen(0)
@@ -1258,7 +1258,7 @@ proc testRenderedPlayerObservationHasBiomeBackedPixels() =
     BiomeCave,
     BiomeRuins
   ]:
-    var sim = initPartyProgressorForTest()
+    var sim = initTribalQuestForTest()
     sim.clearTerrain()
     sim.mobs.setLen(0)
     sim.pickups.setLen(0)
@@ -1328,7 +1328,7 @@ proc testRenderedPlayerObservationHasBiomeBackedPixels() =
     "biome-backed rendered observations should produce distinct color families"
 
 proc testSpriteProtocolPacketMatchesReferenceParsers() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   let playerIndex = sim.addPlayer("player1")
 
   var nextState: PlayerViewerState
@@ -1419,7 +1419,7 @@ proc testSpriteProtocolPacketMatchesReferenceParsers() =
   doAssert "status role healer" in healerLabels
 
 proc testSpriteProtocolMatchesCurrentSharedClientContract() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   let playerIndex = sim.addPlayer("protocol")
   var nextState: PlayerViewerState
   let packet = sim.buildSpriteProtocolPlayerUpdates(
@@ -1464,7 +1464,7 @@ proc testSpriteProtocolMatchesCurrentSharedClientContract() =
     "sprite client chat should arrive as 0x81 length-prefixed ASCII"
 
 proc testGlobalSpriteViewFollowsPartyProgress() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -1500,7 +1500,7 @@ proc testGlobalSpriteViewFollowsPartyProgress() =
     "global player object should remain visible inside the bird's-eye viewport"
 
 proc testCarriedInventoryTilesAcrossBottomOfPlayerView() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -1524,7 +1524,7 @@ proc testCarriedInventoryTilesAcrossBottomOfPlayerView() =
   doAssert parsed.sprites[carryObject.spriteId].label == "food"
 
 proc testCarriedFoodStacksAndShowsCount() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -1599,7 +1599,7 @@ proc testRoleSpecialAbilitiesShowColoredSpriteEffects() =
     (role: RoleDps, label: "ability dps effect"),
     (role: RoleHealer, label: "ability healer effect")
   ]:
-    var sim = initPartyProgressorForTest()
+    var sim = initTribalQuestForTest()
     sim.clearTerrain()
     sim.mobs.setLen(0)
     sim.pickups.setLen(0)
@@ -1627,7 +1627,7 @@ proc testRoleSpecialAbilitiesShowColoredSpriteEffects() =
         "DPS special should show a straight beam effect"
 
 proc testRoleSpecialAbilitiesUseManaAndHudMeter() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -1680,7 +1680,7 @@ proc testRoleSpecialAbilitiesUseManaAndHudMeter() =
     "mana should naturally regenerate for repeated choices"
 
 proc testPlayerDebugAsciiSnapshotIsReadable() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -1732,7 +1732,7 @@ proc testPlayerDebugAsciiSnapshotIsReadable() =
   doAssert ascii.contains("landmark#0 glyph=C")
 
 proc testGeneratedMonsterSpritesStayRichlyColored() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   let playerIndex = sim.addPlayer("player1")
   for species in [
     SpeciesPackAlpha,
@@ -1785,7 +1785,7 @@ proc testGeneratedMonsterSpritesStayRichlyColored() =
       label & " should not collapse into a single flat tint"
 
 proc testExpeditionObjectiveHudGuidesNextStep() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
   let playerIndex = sim.addPlayer("player1")
@@ -1838,7 +1838,7 @@ proc testExpeditionObjectiveHudGuidesNextStep() =
   doAssert sim.expeditionObjectiveHint(playerIndex) == "NEXT HOLD GATE 0%"
 
 proc testBiomeMonsterSpeciesBreadth() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   var seen: seq[MobSpecies] = @[]
   for mob in sim.mobs:
     if mob.species != SpeciesNone and mob.species notin seen:
@@ -1887,7 +1887,7 @@ proc testMonsterTacticalHooksAndStatuses() =
   doAssert SpeciesMudSlime.attackStyle() == AttackAura
   doAssert SpeciesSnowWolf.attackStyle() == AttackLunge
 
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -1967,7 +1967,7 @@ proc testDefeatedBiomeMonstersDropExpeditionSupplies() =
   doAssert SpeciesGateTitan.speciesSupplyDrop() == CarryNone
 
   proc defeatSpecies(species: MobSpecies): SimServer =
-    result = initPartyProgressorForTest()
+    result = initTribalQuestForTest()
     result.clearTerrain()
     result.mobs.setLen(0)
     result.pickups.setLen(0)
@@ -2018,7 +2018,7 @@ proc testDefeatedBiomeMonstersDropExpeditionSupplies() =
 
 proc testExpandedMonsterFamiliesAndArmorDrops() =
   doAssert AllMobSpecies.len == 44,
-    "party progressor should keep the expanded biome monster roster"
+    "tribal quest should keep the expanded biome monster roster"
   doAssert SpeciesPackAlpha.attackStyle() == AttackCone
   doAssert SpeciesFireScorpion.attackStyle() == AttackLine
   doAssert SpeciesNetThrower.attackStyle() == AttackTrap
@@ -2031,7 +2031,7 @@ proc testExpandedMonsterFamiliesAndArmorDrops() =
   doAssert SpeciesCrystalSeer.speciesArmorDrop() == ArmorLanternCharm
 
 proc testBiomeMasteryMakesRegionalDetoursMatter() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -2123,7 +2123,7 @@ proc testBiomeMasteryMakesRegionalDetoursMatter() =
   doAssert sim.teamScore() >= BiomeMasteryScoreValue
 
 proc testArmorPickupEquipsAndShowsHud() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -2159,7 +2159,7 @@ proc testArmorPickupEquipsAndShowsHud() =
     "player HUD should expose equipped armor as a top-right icon"
 
 proc testSpriteProtocolShowsStatusAndObjectiveAffordances() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -2362,7 +2362,7 @@ proc testSpriteProtocolShowsStatusAndObjectiveAffordances() =
   doAssert "prompt ward t" in spriteLabels
 
 proc testSpriteProtocolShowsObjectiveProgressPrompts() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -2440,7 +2440,7 @@ proc testChatPingsShowCompactStatusBadges() =
   doAssert playerPingForMessage("rescue now") == PingRescue
   doAssert playerPingForMessage("clear lair") == PingLair
 
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -2477,7 +2477,7 @@ proc testChatPingsShowCompactStatusBadges() =
   doAssert sim.players[playerIndex].pingTicks == 0
 
 proc testSpriteProtocolShowsMonsterThreatTelegraphs() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -2534,7 +2534,7 @@ proc testSpriteProtocolShowsMonsterThreatTelegraphs() =
   doAssert "mob lunge strike" in labels
 
 proc testTerrainMovementModifiersAffectPlayers() =
-  var roadSim = initPartyProgressorForTest()
+  var roadSim = initTribalQuestForTest()
   roadSim.clearTerrain()
   roadSim.mobs.setLen(0)
   roadSim.pickups.setLen(0)
@@ -2549,7 +2549,7 @@ proc testTerrainMovementModifiersAffectPlayers() =
     roadSim.step([InputState(right: true)])
   let roadDistance = roadSim.players[roadPlayer].x - startRoadX
 
-  var mudSim = initPartyProgressorForTest()
+  var mudSim = initTribalQuestForTest()
   mudSim.clearTerrain()
   mudSim.mobs.setLen(0)
   mudSim.pickups.setLen(0)
@@ -2568,7 +2568,7 @@ proc testTerrainMovementModifiersAffectPlayers() =
     "road movement should outpace mud movement"
 
 proc testElevationSlowsHighGround() =
-  var lowSim = initPartyProgressorForTest()
+  var lowSim = initTribalQuestForTest()
   lowSim.clearTerrain()
   lowSim.mobs.setLen(0)
   lowSim.pickups.setLen(0)
@@ -2583,7 +2583,7 @@ proc testElevationSlowsHighGround() =
     lowSim.step([InputState(right: true)])
   let lowDistance = lowSim.players[lowPlayer].x - startLowX
 
-  var highSim = initPartyProgressorForTest()
+  var highSim = initTribalQuestForTest()
   highSim.clearTerrain()
   highSim.mobs.setLen(0)
   highSim.pickups.setLen(0)
@@ -2608,7 +2608,7 @@ proc setupElevationCombatScenario(
   playerElevation,
   mobElevation: int
 ): SimServer =
-  result = initPartyProgressorForTest()
+  result = initTribalQuestForTest()
   result.clearTerrain()
   result.mobs.setLen(0)
   result.pickups.setLen(0)
@@ -2715,7 +2715,7 @@ proc testElevationCombatAdvantageAndBadges() =
     "player observations should badge mobs with low-ground vulnerability"
 
 proc testResourceHarvestAndCampActivation() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -2755,7 +2755,7 @@ proc testResourceHarvestAndCampActivation() =
   doAssert sim.players[playerIndex].carrying
   doAssert sim.players[playerIndex].carriedItem == CarryWood
 
-  var goldSim = initPartyProgressorForTest()
+  var goldSim = initTribalQuestForTest()
   goldSim.clearTerrain()
   goldSim.mobs.setLen(0)
   goldSim.pickups.setLen(0)
@@ -2862,7 +2862,7 @@ proc testResourceHarvestAndCampActivation() =
           "camp shortcut should clear blocking props from the corridor"
 
 proc testCarriedFoodCanBeEatenForRecovery() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -2906,7 +2906,7 @@ proc testCarriedFoodCanBeEatenForRecovery() =
     "carried food should only advertise eating when it will help"
 
 proc testCarriedFoodCanBeFedToNearbyTeammate() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -2960,7 +2960,7 @@ proc testCarriedFoodCanBeFedToNearbyTeammate() =
     "carried food should only advertise feeding near a teammate it can help"
 
 proc testCarriedWoodCanPlankSwampCrossings() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3014,7 +3014,7 @@ proc testCarriedWoodCanPlankSwampCrossings() =
   doAssert sim.carryHudLabel(playerIndex) == "wood sel drop"
 
 proc testCarriedStoneCanCutElevationSteps() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3071,7 +3071,7 @@ proc testCarriedStoneCanCutElevationSteps() =
   doAssert sim.carryHudLabel(playerIndex) == "stone sel drop"
 
 proc testCampFortificationConsumesResourcesAndDefendsStagingArea() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3154,7 +3154,7 @@ proc testCampFortificationConsumesResourcesAndDefendsStagingArea() =
   doAssert sim.mobs.allIt(it.kind == BossMob or it.species == SpeciesDireWolf)
 
 proc testCampProvisioningConsumesFoodAndImprovesRecovery() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3231,7 +3231,7 @@ proc testCampProvisioningConsumesFoodAndImprovesRecovery() =
     "snow pressure should return after meal rations expire"
 
 proc testCarriedSuppliesUpgradeActivatedCamps() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3304,7 +3304,7 @@ proc testCarriedSuppliesUpgradeActivatedCamps() =
   doAssert not sim.hasPickup(PickupGold)
 
 proc testRoleSpecializedCampsCreateDistinctStagingBenefits() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3373,7 +3373,7 @@ proc testRoleSpecializedCampsCreateDistinctStagingBenefits() =
     "healer aid camps should cleanse statuses faster than ordinary shelters"
 
 proc testBeaconAndBossScoring() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3598,7 +3598,7 @@ proc testBeaconAndBossScoring() =
   doAssert finalScores["triumph_ticks"][0].getInt() == FinalGateTriumphTicks
 
 proc testFinalGateRitualAcceleratesWithPartyRoles() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3653,7 +3653,7 @@ proc testFinalGateRitualAcceleratesWithPartyRoles() =
     "all three roles holding the gate should complete the ritual faster"
 
 proc testFinalGateObjectiveOverridesRuinsCleanup() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3698,7 +3698,7 @@ proc testFinalGateObjectiveOverridesRuinsCleanup() =
     "final gate should override optional ruins cleanup once prerequisites are met"
 
 proc testShrineSideObjectiveScoringAndSustain() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3774,7 +3774,7 @@ proc testShrineSideObjectiveScoringAndSustain() =
   doAssert "prompt shrine f2" notin labels
 
 proc testRescueSideObjectiveRequiresHoldAndRewardsParty() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3856,7 +3856,7 @@ proc testRescueSideObjectiveRequiresHoldAndRewardsParty() =
     "rescue guide knowledge should expire after the next push window"
 
 proc testRescueGuideFollowsAndThanksAtCamp() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3902,7 +3902,7 @@ proc testRescueGuideFollowsAndThanksAtCamp() =
     "dropped-off rescue guides should visibly thank the party"
 
 proc testHealerCompletesRescueEventsFaster() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -3957,7 +3957,7 @@ proc testCooperativeObjectiveHoldsStackPartyEffort() =
     RoleDps
   ) == DpsBeaconAttunementStep
 
-  var beaconSim = initPartyProgressorForTest()
+  var beaconSim = initTribalQuestForTest()
   beaconSim.clearTerrain()
   beaconSim.mobs.setLen(0)
   beaconSim.pickups.setLen(0)
@@ -4021,7 +4021,7 @@ proc testCooperativeObjectiveHoldsStackPartyEffort() =
   doAssert beaconSim.players[beaconTank].moraleTicks == 0,
     "objective morale should expire after its next-push window"
 
-  var rescueSim = initPartyProgressorForTest()
+  var rescueSim = initTribalQuestForTest()
   rescueSim.clearTerrain()
   rescueSim.mobs.setLen(0)
   rescueSim.pickups.setLen(0)
@@ -4060,7 +4060,7 @@ proc testCooperativeObjectiveHoldsStackPartyEffort() =
   doAssert rescueSim.players[tankIndex].moraleTicks == ObjectiveMoraleTicks,
     "grouped rescue completions should grant visible party morale"
 
-  var waypointSim = initPartyProgressorForTest()
+  var waypointSim = initTribalQuestForTest()
   waypointSim.clearTerrain()
   waypointSim.mobs.setLen(0)
   waypointSim.pickups.setLen(0)
@@ -4104,7 +4104,7 @@ proc testCooperativeObjectiveHoldsStackPartyEffort() =
     "grouped waystation completions should grant visible party morale"
 
 proc testMonsterLairAttackRewardsAndPacifiesThreats() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -4240,12 +4240,12 @@ proc testBiomeWaystationsCreateRoleDetoursAndShelters() =
   doAssert BiomeSwamp.waystationPromptLabel() == "BRIDGE T"
   doAssert BiomeSnow.waystationPromptLabel() == "HEARTH H"
 
-  let seededSim = initPartyProgressorForTest()
+  let seededSim = initTribalQuestForTest()
   doAssert seededSim.landmarks.countIt(it.kind == LandmarkWaystation) ==
       BiomeCount * ExpeditionCycleCount,
     "one waystation should be seeded into each procedural adventure segment"
 
-  var swampSim = initPartyProgressorForTest()
+  var swampSim = initTribalQuestForTest()
   swampSim.clearTerrain()
   swampSim.mobs.setLen(0)
   swampSim.pickups.setLen(0)
@@ -4347,7 +4347,7 @@ proc testBiomeWaystationsCreateRoleDetoursAndShelters() =
   doAssert swampSim.survivalPressureKind(swampPlayer) == SurvivalMire,
     "waystation route knowledge should expire back to local biome pressure"
 
-  var snowSim = initPartyProgressorForTest()
+  var snowSim = initTribalQuestForTest()
   snowSim.clearTerrain()
   snowSim.mobs.setLen(0)
   snowSim.pickups.setLen(0)
@@ -4392,7 +4392,7 @@ proc testBiomeWaystationsCreateRoleDetoursAndShelters() =
     "snow hearth shelter should prevent cold exposure damage"
 
 proc testDpsBeamSpecialDamagesMobsInFacingLine() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -4448,7 +4448,7 @@ proc testDpsBeamSpecialDamagesMobsInFacingLine() =
     "DPS beam should stop after five tiles"
 
 proc testPartyFocusRewardsMixedRoleAttacksAndShowsBadge() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -4539,7 +4539,7 @@ proc testPartyFocusRewardsMixedRoleAttacksAndShowsBadge() =
     "all three roles should create the strongest focus-fire damage bonus"
 
 proc testGateTitanRaidWindowRewardsFormationAndFocus() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -4653,7 +4653,7 @@ proc testGateTitanRaidWindowRewardsFormationAndFocus() =
     "uncoordinated boss hits should not stagger the gate titan"
 
 proc testMixedRoleFormationRechargesPowersAndShowsBadge() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -4711,7 +4711,7 @@ proc testMixedRoleFormationRechargesPowersAndShowsBadge() =
     "role power recovery should return to normal when the formation breaks"
 
 proc testHealerTriageAndHelpAffordance() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -4777,7 +4777,7 @@ proc testHealerTriageAndHelpAffordance() =
     "healer pulse should spend cooldown when cleansing party statuses"
 
 proc testFoodAndColdSurvivalPressure() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -4812,7 +4812,7 @@ proc testFoodAndColdSurvivalPressure() =
   doAssert not sim.players[playerIndex].carrying
 
 proc testLateRunExhaustionUsesRationsAndShowsStatus() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -4878,7 +4878,7 @@ proc testLateRunExhaustionUsesRationsAndShowsStatus() =
     "healer pulse should cleanse exhaustion like other expedition statuses"
 
 proc testSnowSharedWarmthClearsColdPressure() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -4935,7 +4935,7 @@ proc testSnowSharedWarmthClearsColdPressure() =
     "snow cold should resume when the party spreads out"
 
 proc testDesertHeatSurvivalPressureAndOasisShelter() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -4988,7 +4988,7 @@ proc testDesertHeatSurvivalPressureAndOasisShelter() =
     "desert oasis shelter should block heat exposure damage"
 
 proc testDesertCactusShadeClearsHeatPressure() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -5048,7 +5048,7 @@ proc testDesertCactusShadeClearsHeatPressure() =
     "desert heat should resume away from cactus shade"
 
 proc testSwampMireSurvivalPressureAndBridgeShelter() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -5084,7 +5084,7 @@ proc testSwampMireSurvivalPressureAndBridgeShelter() =
   doAssert sim.players[playerIndex].slowTicks == 0,
     "swamp bridge shelters should block mire slow pulses"
 
-  var roadSim = initPartyProgressorForTest()
+  var roadSim = initTribalQuestForTest()
   roadSim.clearTerrain()
   roadSim.mobs.setLen(0)
   roadSim.pickups.setLen(0)
@@ -5103,7 +5103,7 @@ proc testSwampMireSurvivalPressureAndBridgeShelter() =
     "dry swamp roads should not apply mire slow pulses"
 
 proc testTankGuardBlocksBiomePressure() =
-  var desertSim = initPartyProgressorForTest()
+  var desertSim = initTribalQuestForTest()
   desertSim.clearTerrain()
   desertSim.mobs.setLen(0)
   desertSim.pickups.setLen(0)
@@ -5160,7 +5160,7 @@ proc testTankGuardBlocksBiomePressure() =
   doAssert desertSim.players[allyIndex].lives == 2,
     "desert heat should resume once tank guard drops"
 
-  var swampSim = initPartyProgressorForTest()
+  var swampSim = initTribalQuestForTest()
   swampSim.clearTerrain()
   swampSim.mobs.setLen(0)
   swampSim.pickups.setLen(0)
@@ -5195,7 +5195,7 @@ proc testTankGuardBlocksBiomePressure() =
     "swamp mire should resume once tank guard drops"
 
 proc testFogBiomeDisorientationRequiresGroupOrLantern() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -5239,7 +5239,7 @@ proc testFogBiomeDisorientationRequiresGroupOrLantern() =
   doAssert sim.players[playerIndex].slowTicks == 0,
     "cave lantern shelters should block fog disorientation"
 
-  var ruinsSim = initPartyProgressorForTest()
+  var ruinsSim = initTribalQuestForTest()
   ruinsSim.clearTerrain()
   ruinsSim.mobs.setLen(0)
   ruinsSim.pickups.setLen(0)
@@ -5257,7 +5257,7 @@ proc testFogBiomeDisorientationRequiresGroupOrLantern() =
     "ruin fog should also disorient isolated unsheltered players"
 
 proc testCarriedGoldLightsCaveAndRuins() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)
@@ -5306,7 +5306,7 @@ proc testCarriedGoldLightsCaveAndRuins() =
   doAssert sim.players[playerIndex].slowTicks >= FogDisorientationTicks - 1,
     "cave fog should resume when the player is no longer carrying light"
 
-  var ruinsSim = initPartyProgressorForTest()
+  var ruinsSim = initTribalQuestForTest()
   ruinsSim.clearTerrain()
   ruinsSim.mobs.setLen(0)
   ruinsSim.pickups.setLen(0)
@@ -5326,7 +5326,7 @@ proc testCarriedGoldLightsCaveAndRuins() =
   doAssert ruinsSim.playerBiomeTacticKind(ruinsPlayer) == BiomeTacticLight
 
 proc testCampShelterAndRecoveryInfrastructure() =
-  var sim = initPartyProgressorForTest()
+  var sim = initTribalQuestForTest()
   sim.clearTerrain()
   sim.mobs.setLen(0)
   sim.pickups.setLen(0)

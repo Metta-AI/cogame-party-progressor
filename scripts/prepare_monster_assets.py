@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare imagegen monster sources for Party Progressor runtime sprites.
+"""Prepare imagegen monster sources for Tribal Quest runtime sprites.
 
 The preferred source path is an imagegen-produced transparent PNG named
 `<monster>_full.png`. This script crops visible alpha, scales the art into the

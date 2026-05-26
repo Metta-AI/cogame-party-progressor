@@ -1,10 +1,10 @@
 version     = "0.1.0"
 author      = "treeform@softmax.com"
-description = "Party Progressor Coworld game."
+description = "Tribal Quest Coworld game."
 license     = "MIT"
 
 srcDir = "src"
-bin = @["party_progressor"]
+bin = @["tribal_quest"]
 
 switch("threads", "on")
 switch("mm", "orc")
