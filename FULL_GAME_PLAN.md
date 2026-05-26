@@ -497,8 +497,7 @@ Implementation direction:
 Acceptance signal:
 
 - `git diff --check` passes.
-- `nim r tests/test_client_routes.nim` passes.
-- `nim r --path:src tests/tests.nim` passes.
+- `nim r --path:../src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH tests/tests.nim` passes.
 - A local player can connect through the canonical browser URL and receive
   sprite-v1 packets from `/player`.
 
@@ -507,14 +506,15 @@ Acceptance signal:
 Run the focused checks:
 
 ```sh
-nim r tests/test_client_routes.nim
-nim r --path:src tests/tests.nim
+BITWORLD_PATH=${BITWORLD_PATH:-$(pwd)/../bitworld}
+nim r --path:../src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH tests/tests.nim
 ```
 
 Build and run locally:
 
 ```sh
-nim c --path:src -o:out/party_progressor src/party_progressor.nim
+BITWORLD_PATH=${BITWORLD_PATH:-$(pwd)/../bitworld}
+nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH -o:out/party_progressor src/party_progressor.nim
 ./out/party_progressor --address:127.0.0.1 --port:2000
 ```
 

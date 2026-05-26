@@ -12,6 +12,7 @@ and `/global` websocket routes. The browser player client is served at
 ## Running
 
 ```sh
+nimble install -d
 nimble build
 ./party_progressor --address:0.0.0.0 --port:8080
 ```
@@ -25,7 +26,8 @@ Open:
 For local source-checkout work without installing the package:
 
 ```sh
-nim c --path:src -o:out/party_progressor src/party_progressor.nim
+BITWORLD_PATH=${BITWORLD_PATH:-$(pwd)/../bitworld}
+nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH -o:out/party_progressor src/party_progressor.nim
 ./out/party_progressor --address:127.0.0.1 --port:2000
 ```
 
@@ -34,7 +36,8 @@ nim c --path:src -o:out/party_progressor src/party_progressor.nim
 The bundled Nim bot is `konrad`.
 
 ```sh
-nim c --path:src -o:out/party_progressor_konrad players/konrad/konrad.nim
+BITWORLD_PATH=${BITWORLD_PATH:-$(pwd)/../bitworld}
+nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH -o:out/party_progressor_konrad players/konrad/konrad.nim
 ./out/party_progressor_konrad --address:127.0.0.1 --port:2000 --name=konrad
 ```
 
@@ -54,4 +57,3 @@ cooldowns, role, biome, weather, and effect state.
 - `players/` contains bundled player bots.
 - `tests/tests.nim` contains the focused gameplay and sprite protocol checks.
 - `FULL_GAME_PLAN.md` records current state and near-term product direction.
-
