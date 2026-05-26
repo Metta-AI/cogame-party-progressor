@@ -1,0 +1,9 @@
+{
+  "author": "treeform@softmax.com",
+  "name": "konrad",
+  "image_uri": "ghcr.io/metta-ai/cogame-party-progressor-konrad:latest",
+  "games": [
+    "party_progressor"
+  ],
+  "run": ["/bin/konrad"]
+}

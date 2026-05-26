@@ -1,0 +1,10 @@
+out/
+nimcache/
+.nimble/
+*.exe
+*.dSYM/
+__pycache__/
+*.pyc
+.DS_Store
+.playwright-cli/
+
