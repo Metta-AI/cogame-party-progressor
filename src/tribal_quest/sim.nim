@@ -35,6 +35,9 @@ const
   ZoneWidthTiles* = 8
   ZoneWidthPixels* = ZoneWidthTiles * WorldTileSize
   LaneHalfHeightTiles* = 4
+  RouteZigZagAmplitudeTiles* = 4
+  RouteClearHalfWidthTiles* = 1
+  RouteThreatHalfHeightTiles* = 3
   RiverSystemStrideSegments* = 4
   RiverSystemSpanSegments* = 1
   RiverDeepHalfWidthTiles* = 0
@@ -295,17 +298,18 @@ const
   TerrainObjectBase* = 8000
   LandmarkObjectBase* = 9000
   CoopAttackWindow* = TargetFps
-  MobSightRadius* = (WorldTileSize * 3) div 2
-  MobChaseCooldown* = 4
+  MobSightRadius* = WorldTileSize * 3
+  MobChaseCooldown* = 2
+  MobChaseStep* = 2
   MobSpawnWanderCooldown* = 16
   MobSpawnWanderJitter* = 36
   MobWanderCooldown* = 16
   MobWanderJitter* = 40
-  MobTelegraphTicks* = TargetFps
+  MobTelegraphTicks* = TargetFps div 2
   MobTelegraphBounces* = 2
   MobTelegraphLift* = 4
   MobLungeTicks* = 10
-  MobLungeStep* = 2
+  MobLungeStep* = 3
   PartyFocusTwoRoleDamageBonus* = 1
   PartyFocusThreeRoleDamageBonus* = 2
   BossTrioDamageBonus* = 1
@@ -2183,6 +2187,39 @@ proc tileIndex*(tx, ty: int): int =
 proc inTileBounds(tx, ty: int): bool =
   tx >= 0 and ty >= 0 and tx < WorldWidthTiles and ty < WorldHeightTiles
 
+proc routeWaypointTy(leg: int): int =
+  let centerTy = WorldHeightTiles div 2
+  clamp(
+    centerTy +
+      (if leg mod 2 == 0:
+        RouteZigZagAmplitudeTiles
+      else:
+        -RouteZigZagAmplitudeTiles),
+    2,
+    WorldHeightTiles - 3
+  )
+
+proc routeCenterTyForTileX*(tx: int): int =
+  ## Returns the row of the intended expedition trail at a world tile x.
+  let centerTy = WorldHeightTiles div 2
+  if tx < SafeZoneRightTiles:
+    return centerTy
+  let
+    rel = max(0, tx - SafeZoneRightTiles)
+    leg = rel div ExpeditionBiomeSpanTiles
+    phase = rel mod ExpeditionBiomeSpanTiles
+    span = max(1, ExpeditionBiomeSpanTiles - 1)
+    fromTy =
+      if leg == 0:
+        centerTy
+      else:
+        routeWaypointTy(leg - 1)
+    toTy = routeWaypointTy(leg)
+  var ty = fromTy + ((toTy - fromTy) * min(phase, span)) div span
+  if rel > 0 and abs(ty - centerTy) < 2:
+    ty = centerTy + (if toTy >= fromTy: 2 else: -2)
+  clamp(ty, 2, WorldHeightTiles - 3)
+
 proc biomeForSegmentIndex*(segmentIndex: int): BiomeKind =
   let zone = ((max(0, segmentIndex) mod BiomeCount) + BiomeCount) mod BiomeCount
   case zone
@@ -2770,9 +2807,10 @@ proc clearSpawnArea*(sim: var SimServer, centerTx, centerTy, radius: int) =
         sim.tiles[tileIndex(tx, ty)] = false
 
 proc clearProgressLane*(sim: var SimServer) =
-  let centerTy = WorldHeightTiles div 2
-  for ty in centerTy - LaneHalfHeightTiles .. centerTy + LaneHalfHeightTiles:
-    for tx in 0 ..< WorldWidthTiles:
+  for tx in 0 ..< WorldWidthTiles:
+    let routeTy = routeCenterTyForTileX(tx)
+    for ty in routeTy - RouteClearHalfWidthTiles ..
+        routeTy + RouteClearHalfWidthTiles:
       if inTileBounds(tx, ty):
         sim.tiles[tileIndex(tx, ty)] = false
   for ty in 0 ..< WorldHeightTiles:
@@ -2863,6 +2901,32 @@ proc pathTxAtTy(path: seq[tuple[tx, ty: int]], ty: int): int =
     return 0
   path[path.len div 2].tx
 
+proc restoreRiverCrossingBand(
+  sim: var SimServer,
+  tx,
+  ty,
+  firstTx,
+  lastTx: int
+) =
+  for dy in [-1, 1]:
+    sim.setRiverBand(tx, ty + dy, firstTx, lastTx, false)
+  sim.setRiverBand(tx, ty, firstTx, lastTx, true)
+
+proc addRiverCrossingRecord(
+  sim: var SimServer,
+  crossingTx,
+  bridgeTy,
+  firstTx,
+  lastTx: int
+) =
+  sim.restoreRiverCrossingBand(crossingTx, bridgeTy, firstTx, lastTx)
+  sim.riverCrossings.add(RiverCrossing(
+    tx: crossingTx,
+    ty: bridgeTy,
+    firstTy: 1,
+    lastTy: WorldHeightTiles - 2
+  ))
+
 proc carveRiverPath(
   sim: var SimServer,
   path: seq[tuple[tx, ty: int]],
@@ -2870,12 +2934,13 @@ proc carveRiverPath(
   lastTx,
   crossingTy: int
 ) =
+  discard crossingTy
   var
     previousTx = 0
     previousTy = 0
     havePrevious = false
   for point in path:
-    let bridge = point.ty == crossingTy
+    let bridge = false
     if havePrevious and point.ty == previousTy and point.tx != previousTx:
       let step = (if point.tx > previousTx: 1 else: -1)
       var tx = previousTx
@@ -2937,30 +3002,73 @@ proc addRiverCrossing(
 ) =
   if path.len == 0:
     return
-  let crossingTx = path.pathTxAtTy(crossingTy)
+  let
+    centerTy = WorldHeightTiles div 2
+    desiredSide =
+      if crossingTy < centerTy:
+        -1
+      elif crossingTy > centerTy:
+        1
+      else:
+        0
+  var
+    crossingTx = path[0].tx
+    bridgeTy = path[0].ty
+    bestScore = low(int)
+  for point in path:
+    let
+      routeTy = routeCenterTyForTileX(point.tx)
+      alignment = abs(point.ty - routeTy)
+      side =
+        if point.ty < centerTy:
+          -1
+        elif point.ty > centerTy:
+          1
+        else:
+          0
+      score =
+        -alignment * 100 -
+          abs(point.ty - crossingTy) +
+          abs(point.ty - centerTy) * 4 +
+          (if side == desiredSide: 50 else: 0)
+    if score > bestScore:
+      crossingTx = point.tx
+      bridgeTy = point.ty
+      bestScore = score
   if crossingTx <= 0:
     return
   for crossing in sim.riverCrossings:
     if abs(crossing.tx - crossingTx) <= RiverShallowHalfWidthTiles and
-        crossing.ty == crossingTy:
+        crossing.ty == bridgeTy:
       return
-  sim.setRiverBand(crossingTx, crossingTy, firstTx, lastTx, true)
-  sim.riverCrossings.add(RiverCrossing(
-    tx: crossingTx,
-    ty: crossingTy,
-    firstTy: 1,
-    lastTy: WorldHeightTiles - 2
-  ))
+  sim.addRiverCrossingRecord(crossingTx, bridgeTy, firstTx, lastTx)
 
-proc riverCrossingTyForSystem(systemIndex: int): int =
-  ## Alternates bridge rows so the rightward route reads as a zig-zag.
-  const offsets = [-3, 3, -2, 2]
+proc riverCrossingTyForSystem(systemIndex, firstTx, lastTx: int): int =
+  ## Places each bridge on the intended switchback route, away from the center row.
   let centerTy = WorldHeightTiles div 2
-  clamp(
-    centerTy + offsets[systemIndex mod offsets.len],
-    centerTy - LaneHalfHeightTiles + 1,
-    centerTy + LaneHalfHeightTiles - 1
-  )
+  var
+    bestTy = centerTy
+    bestScore = -1
+    desiredSide = if systemIndex mod 2 == 0: 1 else: -1
+  for candidateTx in [
+    firstTx + max(1, (lastTx - firstTx) div 4),
+    firstTx + max(1, ((lastTx - firstTx) * 3) div 4)
+  ]:
+    let
+      ty = routeCenterTyForTileX(clamp(candidateTx, firstTx, lastTx))
+      distance = abs(ty - centerTy)
+      side =
+        if ty < centerTy:
+          -1
+        elif ty > centerTy:
+          1
+        else:
+          0
+      score = distance + (if side == desiredSide: 100 else: 0)
+    if score > bestScore:
+      bestTy = ty
+      bestScore = score
+  clamp(bestTy, 1, WorldHeightTiles - 2)
 
 proc seedLongRiverSystem(
   sim: var SimServer,
@@ -2970,7 +3078,6 @@ proc seedLongRiverSystem(
 ) =
   ## Carves one wide vertical river barrier, plus forked tributaries.
   let
-    crossingTy = riverCrossingTyForSystem(systemIndex)
     firstTx = SafeZoneRightTiles + firstSegment * ExpeditionBiomeSpanTiles
     lastTx = min(
       WorldWidthTiles - 1,
@@ -2979,7 +3086,9 @@ proc seedLongRiverSystem(
   if firstTx >= WorldWidthTiles:
     return
 
-  let mainPath = sim.buildMainRiverPath(systemIndex, firstTx, lastTx)
+  let
+    crossingTy = riverCrossingTyForSystem(systemIndex, firstTx, lastTx)
+    mainPath = sim.buildMainRiverPath(systemIndex, firstTx, lastTx)
   sim.carveRiverPath(mainPath, firstTx, lastTx, crossingTy)
   sim.addRiverCrossing(mainPath, crossingTy, firstTx, lastTx)
 
@@ -3025,6 +3134,8 @@ proc seedLongRiverSystems(sim: var SimServer) =
     sim.seedLongRiverSystem(systemIndex, firstSegment, lastSegment)
     firstSegment += RiverSystemStrideSegments
     inc systemIndex
+  for crossing in sim.riverCrossings:
+    sim.restoreRiverCrossingBand(crossing.tx, crossing.ty, 0, WorldWidthTiles - 1)
 
 proc seedSegmentLake(
   sim: var SimServer,
@@ -3049,7 +3160,7 @@ proc seedSegmentLake(
     rx =
       case biome
       of BiomeSwamp: 1
-      else: 2
+      else: 1
     ry =
       case biome
       of BiomeSwamp: 1
@@ -3076,13 +3187,14 @@ proc seedSegmentRidges(
   lastTx: int,
   biome: BiomeKind
 ) =
-  ## Raises high, sight-blocking side ridges without closing the central lane.
+  ## Raises high, sight-blocking side ridges without closing the expedition route.
   let centerTy = WorldHeightTiles div 2
   for tx in firstTx .. lastTx:
+    let routeTy = routeCenterTyForTileX(tx)
     let bend = ((tx + segmentIndex * 3 + sim.seed) mod 5) - 2
     for ridgeBase in [centerTy - 5, centerTy + 5]:
       let ty = clamp(ridgeBase + bend div 2, 1, WorldHeightTiles - 2)
-      if abs(ty - centerTy) <= LaneHalfHeightTiles:
+      if abs(ty - routeTy) <= RouteClearHalfWidthTiles + 1:
         continue
       if sim.tileGroundKind(tx, ty) in {
           GroundWater,
@@ -3111,24 +3223,26 @@ proc seedProceduralLandforms(sim: var SimServer) =
       break
     sim.seedSegmentLake(segmentIndex, firstTx, lastTx, biome)
     sim.seedSegmentRidges(segmentIndex, firstTx, lastTx, biome)
+  for crossing in sim.riverCrossings:
+    sim.restoreRiverCrossingBand(crossing.tx, crossing.ty, 0, WorldWidthTiles - 1)
 
 proc denseTerrainThreshold(biome: BiomeKind, laneDistance: int): int =
+  if laneDistance <= RouteClearHalfWidthTiles:
+    return 0
   if laneDistance <= LaneHalfHeightTiles:
-    if laneDistance < 3:
-      return 0
     return case biome
       of BiomeForest:
-        20
+        26
       of BiomeSwamp:
-        14
+        22
       of BiomeCave, BiomeRuins:
-        12
+        20
       of BiomeSnow:
-        10
+        18
       of BiomePlains:
-        8
+        16
       of BiomeDesert:
-        4
+        10
       of BiomeOrigin:
         0
   result =
@@ -3152,11 +3266,10 @@ proc denseTerrainThreshold(biome: BiomeKind, laneDistance: int): int =
 
 proc seedDenseBiomeTerrain*(sim: var SimServer) =
   ## Adds biome-flavored off-route groves, rubble, rocks, and blockers.
-  let centerTy = WorldHeightTiles div 2
   for ty in 0 ..< WorldHeightTiles:
     for tx in SafeZoneRightTiles + 1 ..< WorldWidthTiles:
       let
-        laneDistance = abs(ty - centerTy)
+        laneDistance = abs(ty - routeCenterTyForTileX(tx))
         biome = sim.tileBiomeKind(tx, ty)
         threshold = denseTerrainThreshold(biome, laneDistance)
       if threshold <= 0:
@@ -3174,6 +3287,33 @@ proc seedDenseBiomeTerrain*(sim: var SimServer) =
           terrainNoise(sim.seed, tx, ty, 127) > 90:
         sim.elevations[index] = max(sim.elevations[index], 4)
 
+proc seedSwitchbackBarriers*(sim: var SimServer) =
+  ## Adds vertical obstacle gates with their openings on the zig-zag route.
+  let totalSegments = ExpeditionCycleCount * BiomeCount
+  for segmentIndex in 0 ..< totalSegments:
+    let
+      firstTx = SafeZoneRightTiles + segmentIndex * ExpeditionBiomeSpanTiles
+      lastTx = min(WorldWidthTiles - 1, firstTx + ExpeditionBiomeSpanTiles - 1)
+    for offset in [
+      ExpeditionBiomeSpanTiles div 3,
+      (ExpeditionBiomeSpanTiles * 2) div 3
+    ]:
+      let tx = clamp(firstTx + offset, firstTx + 1, lastTx - 1)
+      if tx <= SafeZoneRightTiles + 1 or tx >= WorldWidthTiles - 1:
+        continue
+      let routeTy = routeCenterTyForTileX(tx)
+      for ty in 1 ..< WorldHeightTiles - 1:
+        if abs(ty - routeTy) <= RouteClearHalfWidthTiles:
+          continue
+        let
+          index = tileIndex(tx, ty)
+          ground = sim.groundKinds[index]
+        if ground in {GroundWater, GroundShallowWater, GroundBridge}:
+          continue
+        sim.tiles[index] = true
+        if abs(ty - routeTy) <= RouteClearHalfWidthTiles + 2:
+          sim.elevations[index] = max(sim.elevations[index], 4)
+
 proc seedBiomeGrounds*(sim: var SimServer) =
   ## Creates deterministic biome bands, base terrain, roads, and blockers.
   sim.groundKinds.setLen(WorldWidthTiles * WorldHeightTiles)
@@ -3185,7 +3325,9 @@ proc seedBiomeGrounds*(sim: var SimServer) =
       let
         index = tileIndex(tx, ty)
         biome = biomeForTileX(tx)
-        laneDistance = abs(ty - centerTy)
+        routeTy = routeCenterTyForTileX(tx)
+        routeDistance = abs(ty - routeTy)
+        originDistance = abs(ty - centerTy)
         noise = terrainNoise(sim.seed, tx, ty, 3)
         ridgeNoise = terrainNoise(sim.seed, tx, ty, 19)
       var ground = biome.baseGroundForBiome()
@@ -3197,16 +3339,16 @@ proc seedBiomeGrounds*(sim: var SimServer) =
           1
         of BiomeSnow, BiomeCave, BiomeRuins:
           2
-      if laneDistance > 2:
+      if routeDistance > 2:
         inc elevation
       if ridgeNoise > 72:
         inc elevation
       elif ridgeNoise < 18:
         dec elevation
       if tx < SafeZoneRightTiles:
-        ground = if laneDistance <= 1: GroundRoad else: GroundGrass
+        ground = if originDistance <= 1: GroundRoad else: GroundGrass
         elevation = 0
-      elif laneDistance == 0:
+      elif routeDistance == 0:
         ground =
           if biome == BiomeSwamp:
             GroundMud
@@ -3214,7 +3356,7 @@ proc seedBiomeGrounds*(sim: var SimServer) =
             GroundRoad
           else:
             GroundRoad
-      elif laneDistance <= LaneHalfHeightTiles:
+      elif routeDistance <= LaneHalfHeightTiles:
         case biome
         of BiomeSwamp:
           ground =
@@ -3684,8 +3826,13 @@ proc spawnOneMob*(
   for _ in 0 ..< 128:
     let
       tx = SafeZoneRightTiles + sim.rng.rand(WorldWidthTiles - SafeZoneRightTiles - 1)
-      centerTy = WorldHeightTiles div 2
-      ty = clamp(centerTy - LaneHalfHeightTiles + sim.rng.rand(LaneHalfHeightTiles * 2), 0, WorldHeightTiles - 1)
+      routeTy = routeCenterTyForTileX(tx)
+      ty = clamp(
+        routeTy - RouteThreatHalfHeightTiles +
+          sim.rng.rand(RouteThreatHalfHeightTiles * 2),
+        0,
+        WorldHeightTiles - 1
+      )
       px = tx * WorldTileSize
       py = ty * WorldTileSize
     if sim.canSpawnMobAt(px, py, bounds):
@@ -3710,7 +3857,7 @@ proc spawnOneMobInRange*(
   firstTx,
   lastTx: int
 ): bool =
-  ## Spawns one mob inside a biome range while preserving the main lane.
+  ## Spawns one mob near the expedition route inside a biome range.
   if species == SpeciesNone:
     return false
   let kind = species.speciesKind()
@@ -3721,10 +3868,10 @@ proc spawnOneMobInRange*(
   for _ in 0 ..< 128:
     let
       tx = lo + sim.rng.rand(max(0, hi - lo))
-      centerTy = WorldHeightTiles div 2
+      routeTy = routeCenterTyForTileX(tx)
       ty = clamp(
-        centerTy - LaneHalfHeightTiles +
-          sim.rng.rand(LaneHalfHeightTiles * 2),
+        routeTy - RouteThreatHalfHeightTiles +
+          sim.rng.rand(RouteThreatHalfHeightTiles * 2),
         0,
         WorldHeightTiles - 1
       )
@@ -4387,6 +4534,7 @@ proc initSimServer*(seed = 0xB1770): SimServer =
   result.seedBiomeGrounds()
   result.seedBrush()
   result.seedDenseBiomeTerrain()
+  result.seedSwitchbackBarriers()
   result.clearProgressLane()
   let startTx = 2
   let startTy = WorldHeightTiles div 2
@@ -7411,6 +7559,7 @@ proc playerNearDesertShade*(sim: SimServer, playerIndex: int): bool =
     pcy = boundsCenterY(player.y, player.bounds)
   for prop in sim.terrainProps:
     if prop.kind != TerrainCactus or
+        not sim.tiles[tileIndex(prop.tx, prop.ty)] or
         sim.tileBiomeKind(prop.tx, prop.ty) != BiomeDesert:
       continue
     let
@@ -8370,7 +8519,7 @@ proc updateMobs*(sim: var SimServer) =
         mob.attackFacing = chooseFacing(centerX, centerY, playerCenterX, playerCenterY)
         let step = chaseVector(centerX, centerY, playerCenterX, playerCenterY)
         mob.wanderCooldown = MobChaseCooldown
-        sim.moveMob(mob, step.dx, step.dy)
+        sim.moveMob(mob, step.dx * MobChaseStep, step.dy * MobChaseStep)
         continue
 
       mob.wanderCooldown = MobWanderCooldown +

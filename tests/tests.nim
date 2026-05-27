@@ -801,10 +801,12 @@ proc testMobChasesNearbyPlayers() =
 
   sim.step([InputState()])
 
-  doAssert sim.mobs[0].x > mobX,
-    "mob inside sight radius should chase toward the player"
+  doAssert sim.mobs[0].x >= mobX + MobChaseStep,
+    "mob inside sight radius should chase quickly enough to punish sprinting"
   doAssert sim.mobs[0].wanderCooldown == MobChaseCooldown,
     "chasing mob should use the short chase cooldown"
+  doAssert MobSightRadius >= WorldTileSize * 3,
+    "mobs should notice route runners before they are already in melee"
 
 proc testPlayerSpeedIsSlower() =
   doAssert MaxSpeed == 320,
@@ -950,6 +952,71 @@ proc testProceduralLandformsAndVisibilityShadow() =
   let shadow = parsed.firstSpriteByLabel("visibility shadow")
   doAssert shadow.pixels.anyIt(it.ord != 0),
     "visibility shadow sprite should contain non-transparent pixels"
+
+proc testExpeditionRouteZigZagsInsteadOfCenterRoad() =
+  let sim = initTribalQuestForTest()
+  let
+    centerTy = WorldHeightTiles div 2
+    firstEndTy =
+      routeCenterTyForTileX(SafeZoneRightTiles + ExpeditionBiomeSpanTiles - 2)
+    secondEndTy =
+      routeCenterTyForTileX(SafeZoneRightTiles + ExpeditionBiomeSpanTiles * 2 - 2)
+  doAssert firstEndTy > centerTy,
+    "the expedition route should first pull players downward"
+  doAssert secondEndTy < centerTy,
+    "the expedition route should then pull players back upward"
+
+  var
+    centerRoadRun = 0
+    longestCenterRoadRun = 0
+    routeOpenTiles = 0
+    barrierRows = 0
+  for tx in SafeZoneRightTiles ..< min(
+      WorldWidthTiles,
+      SafeZoneRightTiles + ExpeditionBiomeSpanTiles * 4
+    ):
+    if sim.tileGroundKind(tx, centerTy) == GroundRoad:
+      inc centerRoadRun
+      longestCenterRoadRun = max(longestCenterRoadRun, centerRoadRun)
+    else:
+      centerRoadRun = 0
+
+    let routeTy = routeCenterTyForTileX(tx)
+    let routeGround = sim.tileGroundKind(tx, routeTy)
+    if routeGround != GroundWater and not sim.tiles[tileIndex(tx, routeTy)]:
+      inc routeOpenTiles
+    var blockedOffRoute = false
+    for ty in 1 ..< WorldHeightTiles - 1:
+      if abs(ty - routeTy) <= RouteClearHalfWidthTiles:
+        continue
+      if sim.tiles[tileIndex(tx, ty)]:
+        blockedOffRoute = true
+        break
+    if blockedOffRoute:
+      inc barrierRows
+
+  doAssert routeOpenTiles >= ExpeditionBiomeSpanTiles * 3,
+    "the visible travel route should stay open along the zig-zag"
+  doAssert longestCenterRoadRun < ExpeditionBiomeSpanTiles div 2,
+    "the center row should not remain a long straight road"
+  doAssert barrierRows >= ExpeditionBiomeSpanTiles * 2,
+    "trees and rocks should create repeated off-route blockers"
+
+proc testHoldingRightDoesNotSprintThroughExpedition() =
+  var sim = initTribalQuestForTest()
+  sim.mobs.setLen(0)
+  sim.bossDefeated = true
+  sim.mobSpawnCooldown = TargetFps * 30
+  let playerIndex = sim.addPlayer("runner")
+  sim.players[playerIndex].applyRole(RoleDps)
+  sim.players[playerIndex].bounds =
+    sim.playerBoundsFor(sim.players[playerIndex])
+
+  for _ in 0 ..< TargetFps * 8:
+    sim.step([InputState(right: true)])
+
+  doAssert sim.frontierTiles() < ExpeditionBiomeSpanTiles * 2,
+    "holding right should hit the switchback terrain instead of scoring a deep sprint"
 
 proc testRiverCrossingAmbushesTriggerOnce() =
   var sim = initTribalQuestForTest()
@@ -5075,6 +5142,8 @@ proc testDesertCactusShadeClearsHeatPressure() =
     ty: shadeTy,
     kind: TerrainCactus
   ))
+  sim.tiles[tileIndex(shadeTx, shadeTy)] = true
+  sim.terrainKinds[tileIndex(shadeTx, shadeTy)] = TerrainCactus
   sim.players[playerIndex].x = shadeTx * WorldTileSize
   sim.players[playerIndex].y = shadeTy * WorldTileSize
   sim.players[playerIndex].bounds =
@@ -5473,6 +5542,8 @@ testPlayerSpeedIsSlower()
 testBiomeGroundsAndWeather()
 testProceduralExpeditionRepeatsBiomeSegments()
 testProceduralLandformsAndVisibilityShadow()
+testExpeditionRouteZigZagsInsteadOfCenterRoad()
+testHoldingRightDoesNotSprintThroughExpedition()
 testRiverCrossingAmbushesTriggerOnce()
 testEarlyBiomeForageAndRallyTactics()
 testSpritePlayerViewportAndBiomeBackground()
