@@ -51,6 +51,12 @@ Fortress should send per-tick JSON with:
 - nearby towns, camps, lairs, relics, enemies, and interactable objects when
   available
 
+The adventure crop should be much smaller than the Fortress world. Default it
+to the current Quest tactical shape: 11 x 11 Fortress tiles for native Quest
+rendering, with Quest free to adapt that down to its 128 x 128 BitWorld screen
+path where needed. Adventurer clients should not receive the full Fortress map
+every tick.
+
 Fortress should accept both raw Fortress actions and BitWorld-style button
 masks. D-pad maps to movement, `A` maps to attack facing, and `B` maps to use
 facing. Raw Fortress actions take precedence when both are supplied.
@@ -60,10 +66,10 @@ facing. Raw Fortress actions take precedence when both are supplied.
 The first Fortress implementation should use a larger fixed map rather than
 chunked storage:
 
-- first target: `MapWidth = 384`, `MapHeight = 240`
+- first target: `MapWidth = 768`, `MapHeight = 480`
 - town cap: `MapAgentsPerTeam = 30`
 - adventure cap: `MapAdventurerSlots = 64`
-- stretch target after profiling: `768 x 480`
+- adventurer view: local 11 x 11 tile crop, not the full map
 
 Add an explicit `CivilizationKind` model with these initial values:
 
