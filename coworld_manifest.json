@@ -24,6 +24,27 @@
           },
           "default": []
         },
+        "fortressAdventureUrl": {
+          "description": "Optional base websocket URL for the upstream Tribal Fortress /adventure API.",
+          "type": "string",
+          "default": ""
+        },
+        "adventurerTokens": {
+          "description": "One Fortress /adventure token per Quest adventurer slot, indexed by slot.",
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "minLength": 0
+          },
+          "default": []
+        },
+        "adventurerRole": {
+          "description": "Default role string to request when Quest connects an adventurer to Fortress.",
+          "type": "string",
+          "default": "adventurer"
+        },
         "seed": {
           "description": "Random seed.",
           "type": "integer",
@@ -159,6 +180,7 @@
     "protocols": {
       "player": "https://github.com/Metta-AI/bitworld/blob/master/docs/sprite_v1.md",
       "global": "https://github.com/Metta-AI/bitworld/blob/master/docs/sprite_v1.md",
+      "adventure": "https://github.com/Metta-AI/coworld-tribal-fortress/blob/main/plan.md#adventure",
       "reward": "https://github.com/Metta-AI/bitworld/blob/master/docs/reward_v1.md"
     },
     "runnable": {

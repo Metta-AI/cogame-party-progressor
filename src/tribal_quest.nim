@@ -1,7 +1,6 @@
-import std/[json, parseopt, strutils]
-import bitworld/cogame_runtime
+import std/[httpclient, json, os, parseopt, strutils]
 import jsony
-import bitworld/protocol, tribal_quest/server
+import bitworld/protocol, tribal_quest/[adventure_api, server]
 
 type
   TribalQuestError = object of CatchableError
@@ -13,9 +12,45 @@ type
     maxTicks: int
     maxGames: int
     tokens: seq[string]
+    fortressAdventureUrl: string
+    adventurerTokens: seq[string]
+    adventurerRole: string
     saveReplayPath: string
     loadReplayPath: string
     saveScoresPath: string
+
+const
+  CogameConfigUriEnv = "COGAME_CONFIG_URI"
+  CogameResultsUriEnv = "COGAME_RESULTS_URI"
+  CogameSaveReplayUriEnv = "COGAME_SAVE_REPLAY_URI"
+  CogameLoadReplayUriEnv = "COGAME_LOAD_REPLAY_URI"
+
+proc pathFromCogameUri(value, source: string): string =
+  ## Converts a Coworld input URI into a local path.
+  if value.len == 0:
+    return ""
+  const FilePrefix = "file://"
+  if value.startsWith(FilePrefix):
+    result = value[FilePrefix.len .. ^1]
+    if result.len == 0:
+      raise newException(ValueError, "empty file URI from " & source)
+    return
+  if value.startsWith("http://") or value.startsWith("https://"):
+    var client = newHttpClient(timeout = 30_000)
+    try:
+      let body = client.getContent(value)
+      result = getTempDir() / ("cogame-" & source.toLowerAscii() & ".json")
+      writeFile(result, body)
+      return
+    finally:
+      client.close()
+  if "://" in value:
+    raise newException(ValueError, "unsupported URI from " & source & ": " & value)
+  raise newException(ValueError, source & " must be a URI")
+
+proc pathFromCogameEnv(name: string): string =
+  ## Reads a Coworld URI env var and returns the local path it addresses.
+  pathFromCogameUri(getEnv(name), name)
 
 proc readConfigStrings(node: JsonNode, name: string, values: var seq[string]) =
   ## Reads one optional string-array config field.
@@ -84,6 +119,15 @@ proc isKnownConfigField(name: string): bool =
       "maxGames",
       "max-games",
       "tokens",
+      "fortressAdventureUrl",
+      "fortress-adventure-url",
+      "fortress_adventure_url",
+      "adventurerTokens",
+      "adventurer-tokens",
+      "adventurer_tokens",
+      "adventurerRole",
+      "adventurer-role",
+      "adventurer_role",
       "saveReplay",
       "loadReplay",
       "saveScores",
@@ -144,6 +188,15 @@ proc update(config: var RunConfig, jsonText: string) =
   node.readConfigInt("maxGames", config.maxGames)
   node.readConfigInt("max-games", config.maxGames)
   node.readConfigStrings("tokens", config.tokens)
+  node.readConfigString("fortressAdventureUrl", config.fortressAdventureUrl)
+  node.readConfigString("fortress-adventure-url", config.fortressAdventureUrl)
+  node.readConfigString("fortress_adventure_url", config.fortressAdventureUrl)
+  node.readConfigStrings("adventurerTokens", config.adventurerTokens)
+  node.readConfigStrings("adventurer-tokens", config.adventurerTokens)
+  node.readConfigStrings("adventurer_tokens", config.adventurerTokens)
+  node.readConfigString("adventurerRole", config.adventurerRole)
+  node.readConfigString("adventurer-role", config.adventurerRole)
+  node.readConfigString("adventurer_role", config.adventurerRole)
 
 proc requireOptionValue(name, value: string) =
   ## Raises when a CLI option is missing its value.
@@ -176,6 +229,12 @@ proc validate(config: RunConfig) =
       TribalQuestError,
       "Config field maxGames must be non-negative."
     )
+  if config.adventurerTokens.len > FortressAdventurerSlots:
+    raise newException(
+      TribalQuestError,
+      "Config field adventurerTokens cannot exceed " &
+        $FortressAdventurerSlots & " entries."
+    )
 
 proc echoStartupPaths(config: RunConfig) =
   ## Prints configured replay and score output paths.
@@ -193,6 +252,11 @@ proc echoStartupPaths(config: RunConfig) =
     echo "Using " & $config.tokens.len & " player connection tokens."
   else:
     echo "No player connection tokens configured."
+  if config.fortressAdventureUrl.len > 0:
+    echo "Fortress adventure URL: " & config.fortressAdventureUrl
+    echo "Using " & $config.adventurerTokens.len &
+      " Fortress adventurer tokens."
+    echo "Default adventurer role: " & config.adventurerRole
   if config.maxTicks > 0:
     echo "Max ticks: " & $config.maxTicks
   else:
@@ -211,6 +275,9 @@ when isMainModule:
       maxTicks: DefaultMaxTicks,
       maxGames: DefaultMaxGames,
       tokens: @[],
+      fortressAdventureUrl: "",
+      adventurerTokens: @[],
+      adventurerRole: "adventurer",
       saveReplayPath: defaultReplayPath(),
       loadReplayPath: defaultLoadReplayPath(),
       saveScoresPath: defaultScoresPath()
@@ -232,6 +299,15 @@ when isMainModule:
         config.maxTicks = key.parseOptionInt(val)
       of "max-games", "maxGames":
         config.maxGames = key.parseOptionInt(val)
+      of "fortress-adventure-url", "fortressAdventureUrl":
+        key.requireOptionValue(val)
+        config.fortressAdventureUrl = val
+      of "adventurer-token", "adventurerToken":
+        key.requireOptionValue(val)
+        config.adventurerTokens.add(val)
+      of "adventurer-role", "adventurerRole":
+        key.requireOptionValue(val)
+        config.adventurerRole = val
       of "save-replay", "save-replay-path", "saveReplayPath":
         key.requireOptionValue(val)
         config.saveReplayPath = val

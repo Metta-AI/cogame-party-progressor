@@ -4,6 +4,7 @@ import
   supersnappy,
   bitworld/protocol,
   bitworld/server,
+  tribal_quest/adventure_api,
   tribal_quest/global,
   tribal_quest/sim
 
@@ -150,6 +151,70 @@ proc packetBytesToString(bytes: openArray[uint8], start, length: int): string =
   result = newString(length)
   for i in 0 ..< length:
     result[i] = char(bytes[start + i])
+
+proc testFortressAdventureApiContract() =
+  let mask = ButtonUp or ButtonRight or ButtonA
+  let input = parseJson(adventureInputJson(mask))
+  doAssert input["type"].getStr() == AdventureInputType
+  doAssert input["move"].getStr() == "NE"
+  doAssert input["attack"].getBool()
+  doAssert not input["use"].getBool()
+  doAssert input["buttons"]["up"].getBool()
+  doAssert input["buttons"]["right"].getBool()
+  doAssert input["buttons"]["a"].getBool()
+  doAssert not input["buttons"]["b"].getBool()
+
+  let conflict = parseJson(adventureInputJson(ButtonUp or ButtonDown or ButtonB))
+  doAssert conflict["move"].getStr() == "none",
+    "opposed vertical inputs should cancel for Fortress adventure movement"
+  doAssert conflict["use"].getBool()
+
+  doAssert adventureUrl(
+    "ws://fortress.local:8080",
+    7,
+    "token value",
+    "elf scout",
+    "path finder"
+  ) == "ws://fortress.local:8080/adventure?slot=7" &
+    "&token=token+value&name=elf+scout&role=path+finder"
+  doAssert adventureUrl(
+    "ws://fortress.local:8080/adventure",
+    0,
+    "",
+    "human",
+    "adventurer"
+  ) == "ws://fortress.local:8080/adventure?slot=0&token=&name=human" &
+    "&role=adventurer"
+
+  var rejected = false
+  try:
+    validateAdventureSlot(FortressAdventurerSlots)
+  except ValueError:
+    rejected = true
+  doAssert rejected, "Fortress adventure slots should be capped at 64"
+
+  let observation = parseAdventureObservation($(%*{
+    "agent_id": 42,
+    "team": "green",
+    "civilization": "Elf",
+    "role": "scout",
+    "position": {"x": 13, "y": 17},
+    "hp": 5,
+    "status": "ready",
+    "view_plane": {
+      "origin_x": 8,
+      "origin_y": 12,
+      "width": QuestAdventureCropTiles,
+      "height": QuestAdventureCropTiles
+    }
+  }))
+  doAssert observation.agentId == 42
+  doAssert observation.civilization == "Elf"
+  doAssert observation.role == "scout"
+  doAssert observation.x == 13 and observation.y == 17
+  doAssert observation.originX == 8 and observation.originY == 12
+  doAssert observation.cropWidth == QuestAdventureCropTiles
+  doAssert observation.cropHeight == QuestAdventureCropTiles
 
 proc firstSpriteRawPixels(
   packet: openArray[uint8],
@@ -5530,6 +5595,7 @@ proc testCampShelterAndRecoveryInfrastructure() =
   doAssert sim.players[playerIndex].lives == 2,
     "snow exposure should still damage players away from camp shelter"
 
+testFortressAdventureApiContract()
 testSafeOriginAndReusableRoles()
 testFrontierScoreIsShared()
 testMobHpScalesByProgressZone()
