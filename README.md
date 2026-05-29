@@ -1,13 +1,12 @@
 # Tribal Quest
 
-Tribal Quest is the adventurer-facing Coworld surface for the shared Tribal
-Fortress world. Quest owns its public `/player` route, controls, scoring, and
-adventurer-centered viewport; the installed Fortress runtime owns the grid
-world, civilizations, settlements, NPC policies, terrain, and step loop.
+Tribal Quest is the adventurer Coworld surface for the shared Tribal Fortress
+world. [plan.md](plan.md) is the canonical contract for the integration.
 
 There is no supported local Quest simulation mode anymore. `worldRuntime` is
-always `fortress`, and missing Fortress runtime code should fail at build or
-startup instead of falling back to the old route.
+always `fortress`, and missing Fortress Nim engine code should fail at build or
+startup instead of falling back to an old route. There is no Python bridge and
+no production `/adventure` route.
 
 ## Running
 
@@ -30,10 +29,9 @@ Open:
 
 - `http://localhost:2000/client/player?address=ws://localhost:2000/player&name=human`
 
-Quest expects the Fortress checkout on the Nim path to expose a small
-`tribal_village_engine` module. Quest should call that Nim engine directly from
-its own `/player` server; there is no Python bridge, alternate `/adventure`
-proxy, or compile-time fallback.
+Quest expects the Fortress checkout on the Nim path to expose
+`tribal_village_engine`. Quest calls that Nim engine directly from its own
+`/player` server.
 
 Optional config fields:
 

@@ -1,268 +1,130 @@
-# Tribal Quest on Shared Fortress Engine Plan
+# Tribal Quest / Fortress Shared Engine Contract
 
 Last updated: 2026-05-29
 
-## Summary
+## Canonical Shape
 
-Make the Fortress grid/world simulation the shared engine underneath both
-games, then expose different Coworld game surfaces on top of it.
+Tribal Quest is the adventurer Coworld game. Tribal Fortress is the shared world
+engine and fortress/town Coworld game.
 
-`coworld-tribal-fortress` remains the fortress and civilization-control game:
-its public `/player` route controls towns, fortresses, and broader settlement
-strategy. `coworld-tribal-quest` becomes the adventurer-control game: its
-public `/player` route controls one adventurer walking through that same kind
-of world while fortresses, civilizations, monsters, goblin hives, camps, lairs,
-and relic objectives keep simulating around them.
+- Fortress owns the authoritative grid simulation.
+- Quest owns its public `/player` adventurer route.
+- Fortress `/player` remains town/fortress/civilization control.
+- Quest `/player` claims one adventurer in the Fortress world.
+- There is no Quest local simulation fallback.
+- There is no production `/adventure` route.
+- There is no Python bridge in the Quest runtime path.
 
-The intended end state is still similar to adventure mode in Dwarf Fortress,
-but the integration should be an engine split rather than a permanent Quest
-sidecar attached to a special public Fortress route. Quest should stay a
-standalone Coworld game repo with its own client, bots, story flavor, scoring,
-and adventurer-centered viewport while sharing the world runtime and mechanics
-with Fortress.
+The integration is Nim-to-Nim for performance and simplicity.
 
-## Runtime Boundary
+## Fortress Must Provide
 
-The long-term boundary should be a shared Fortress engine plus thin Coworld
-surfaces:
+Quest expects `TRIBAL_FORTRESS_PATH/src` to expose a Nim module named
+`tribal_village_engine`.
 
-- shared engine: world state, step loop, terrain, entities, civilizations,
-  elevation, towns, NPCs, combat, fog, tint, replay, objective hooks, local view
-  crops, and control-profile routing
-- Fortress surface: town/fortress/civilization control using the larger
-  strategic viewport
-- Quest surface: adventurer control using the adventurer-centered tactical
-  viewport
+The module should provide a small API:
 
-Each standalone game should keep a normal Coworld `/player` route. The meaning
-of `/player` is selected by the game package:
+```nim
+type
+  FortressEngineConfig* = object
+    maxSteps*: int
+    seed*: int
+    adventurerViewRadius*: int
+    aiMode*: string
+    worldWidth*: int
+    worldHeight*: int
+    townAgentsPerTeam*: int
+    adventurerSlots*: int
 
-- in Fortress, `/player` binds to a town or fortress controller
-- in Quest, `/player` binds to an adventurer controller
-- unclaimed towns, wilderness actors, monsters, and background adventurers run
-  through built-in NPC policies
+  FortressEngine* = object
 
-The engine should distinguish these control profiles explicitly:
-
-- `TownController`: player commands a town, fortress, or civilization slice
-- `Adventurer`: player commands one adventurer agent in the broader world
-- `Npc`: built-in AI controls the agent, settlement, monster, or wilderness
-  actor
-
-The current Fortress-side adventurer work is useful as a reference for the
-adventurer observation/action shape, but Quest should not consume it as a
-separate runtime protocol. Quest should own its public `/player` route and wire
-that route directly to the installed Fortress Nim engine API.
-
-## Shared Engine Contract
-
-The shared engine should support both town-scale and adventurer-scale control
-without running two independent simulations side by side.
-
-Core requirements:
-
-- one authoritative grid/world state
-- explicit ownership or control metadata for every controllable agent
-- built-in AI stays active for all `Npc` actors
-- externally supplied actions override AI only for claimed player-controlled
-  agents
-- town controllers and adventurers can coexist in the same world model
-- local crop export supports small adventurer views without exposing the full
-  strategic map every tick
-- replay and scoring can identify which control profile produced each action
-
-Initial player-facing surfaces:
-
-- Fortress `/player`: town-overseer protocol, preserved for compatibility
-- Quest `/player`: adventurer protocol, backed by the shared engine
-
-Do not add a second Quest-facing `/adventure` route and do not require Quest to
-proxy to Fortress over a separate WebSocket. The Quest server should translate
-Coworld `/player` input into adventurer engine actions in-process or through a
-local engine adapter owned by this repo.
-
-The adventurer observation should keep the current Quest tactical shape by
-default:
-
-- existing 11 x 11 observation tensor
-- local `tribalcog-view-plane-v1` crop with `origin_x` and `origin_y`
-- adventurer agent id, team, civilization, position, health, status, inventory,
-  role, nearby towns, camps, lairs, relics, enemies, and interactable objects
-  when available
-
-Quest can adapt that crop to its current 128 x 128 BitWorld screen path while
-the shared engine remains tile/grid based. Adventurer clients should not receive
-the full Fortress world every tick.
-
-The adventurer action adapter should accept Quest's current button-mask style
-and forward it to the engine:
-
-- Quest sends `{"type":"adventurer.buttons","buttons": <mask>}`
-- raw tests may send `{"type":"adventurer.action","action": <id>}`
-- the Fortress engine owns decoding masks into move, attack, use, and future
-  role abilities
-
-Button masks remain the compatibility layer for existing Quest clients and bots
-without duplicating action semantics in Quest.
-
-## Fortress Dependency And Install Shape
-
-Quest should explicitly install and depend on the Fortress codebase once the
-Fortress-side plan is implemented. The first local integration should support a
-sibling checkout:
-
-```sh
-TRIBAL_FORTRESS_PATH=${TRIBAL_FORTRESS_PATH:-$(pwd)/../coworld-tribal-fortress}
+proc initFortressEngine*(config: FortressEngineConfig): FortressEngine
+proc close*(engine: var FortressEngine)
+proc claimAdventurer*(engine: var FortressEngine, slot: int, teamId = -1): int
+proc releaseAdventurer*(engine: var FortressEngine, slot: int): bool
+proc submitAdventurerInput*(engine: var FortressEngine, slot: int, payloadJson: string)
+proc step*(engine: var FortressEngine)
+proc adventurerObservationJson*(engine: FortressEngine, slot: int): string
 ```
 
-That path dependency should be replaced by a pinned package or Git dependency
-after Fortress extracts the shared engine cleanly.
+That API owns worldgen, terrain, civilizations, NPC policies, claim tracking,
+action decoding, stepping, and local crop export.
 
-Quest owns the adapter layer that turns Fortress engine state into the Quest
-Coworld player surface:
+## Quest Must Provide
 
-- import the Fortress Nim engine module from `TRIBAL_FORTRESS_PATH/src`
-- construct the Fortress engine/world runtime from Quest
-- configure it for the large world, NPC fortresses, civilizations, elevation,
-  camps, lairs, and adventurer slots
-- spawn or bind one adventurer per Quest `/player` slot
-- keep Fortress town/civilization agents under engine-owned NPC policies
-- translate Quest button masks, role powers, and chat/control metadata into
-  adventurer engine actions
-- render Quest's adventurer-centered view from Fortress `view_plane`,
-  `sprite_view`, observation, and agent-state data
-- write Quest scores/replays from the adventurer perspective
+Quest imports `tribal_village_engine`, starts the engine, and wraps it with its
+own Coworld `/player` route.
 
-The adapter should reuse Fortress global and environment state directly through
-the Nim engine API. Quest should avoid duplicating worldgen, terrain storage,
-civilization state, NPC stepping, or global map export once those are available
-from the installed Fortress engine.
+Quest is responsible for:
 
-## World And Civilizations
+- token-to-adventurer-slot binding
+- websocket lifecycle for `/player`
+- converting player input masks to engine payload JSON
+- rendering or adapting the adventurer-centered view
+- Quest scoring and replay output
+- Quest-specific docs and future reference bots
 
-The first shared-engine implementation can keep a larger fixed map rather than
-chunked storage:
+Quest should not duplicate Fortress world simulation code.
 
-- first target: `MapWidth = 768`, `MapHeight = 480`
-- town cap: `MapAgentsPerTeam = 30`
-- adventure cap: `MapAdventurerSlots = 64`
-- Fortress view: larger strategic viewport for town and civilization play
-- Quest view: local adventurer-centered crop, not the full map
+## Action Contract
 
-Add an explicit `CivilizationKind` model with these initial values:
+Quest forwards player input as button masks:
 
-- `Human`
-- `Elf`
-- `Dwarf`
-- `Orc`
-- `Goblin`
+```json
+{"type":"adventurer.buttons","buttons":33}
+```
 
-Humans should keep the current baseline town behavior. For v1, other
-civilizations should at least have stable metadata, settlement identity, and
-worldgen hooks. Civ-specific balance and deep behavior differences can follow
-after the shared control path is stable.
+Button bits match BitWorld:
 
-Initial civilization direction:
+- `up = 1`
+- `down = 2`
+- `left = 4`
+- `right = 8`
+- `a = 32`
+- `b = 64`
 
-- Elves live in forest settlements with tree houses, high platforms, bridges,
-  and drawbridges.
-- Dwarves live in mountains, mine, tunnel, and build smithies.
-- Orcs build surface strongholds and direct or amplify nearby goblin raids.
-- Goblins spawn readily as hostile hives, camps, patrols, and raiders. Goblins
-  can become playable later, but hostile goblin ecology should come first.
-- Humans remain the stable default civilization and compatibility baseline.
+Tests may send raw engine actions:
 
-Make the existing elevation concept explicit and consistent:
+```json
+{"type":"adventurer.action","action":28}
+```
 
-- low
-- base
-- high
+Fortress owns decoding masks into move, attack, use, and future role abilities.
 
-Movement should use ramps, roads, bridges, drawbridges, and tunnels to cross
-elevation boundaries. Visibility should respect higher ground and obscured
-tiles. This supports elven tree houses and dwarf mountain settlements without
-introducing a full 3D engine.
+## Observation Contract
 
-## Tribal Quest Migration
+`adventurerObservationJson(engine, slot)` returns a JSON object with stable
+fields Quest can parse:
 
-Quest should prepare to run on the shared Fortress engine with an
-adventurer-control surface. It should not permanently own duplicated
-terrain/world simulation once the engine-backed path works.
+- `type = "engine.adventurer_observation"`
+- `control_profile = "Adventurer"`
+- `slot`
+- `agent_id`
+- `team_id`
+- `civilization`
+- `position`
+- `hp`
+- `max_hp`
+- `done`
+- `view_plane`
+- `sprite_view`
+- `observation`
 
-The first Quest migration should:
+`view_plane` and `sprite_view` are local adventurer-centered crops. They are not
+full-map payloads.
 
-- keep the Quest player-facing adventure client shape where it helps
-- keep Quest's public Coworld player entrypoint as `/player`
-- require the shared Fortress Nim engine through a local/package dependency,
-  not a separate public adventure socket and not a Python bridge
-- launch the engine with an `Adventurer` control profile for Quest players
-- bind each Quest player token to one adventurer agent
-- keep towns, fortresses, wilderness actors, and hostile groups running under
-  `Npc` policies unless explicitly claimed by another surface
-- translate Quest movement and ability controls into shared-engine adventurer
-  input
-- render the shared-engine local view crop and adventurer state
-- keep Quest-specific story, role defaults, scoring, docs, and reference bots
-  only after they are ported to the Fortress-backed contract
+## Defaults
 
-Quest should treat the older Party Progressor loop as the product reference:
-one or more adventurers moving through a dangerous world, making forward
-progress, gathering resources, using roles, and surviving encounters. The world
-source changes from Quest's local route simulation to the installed Fortress
-engine, and the old local Quest runtime should be removed instead of maintained
-as a second execution mode. The player-facing mode remains Quest-owned
-adventurer play.
+- world runtime: `fortress`
+- world size: `768 x 480`
+- town agents per team: `30`
+- adventurer slots: `64`
+- Quest tactical crop: `11 x 11`
+- default adventurer role: `adventurer`
 
-Quest may continue using BitWorld helpers internally only where they directly
-serve the Fortress-backed adventurer route, such as button-mask compatibility.
-The shared engine should not need to serve the old BitWorld binary sprite
-protocol, and Quest should not keep the old local sim/render/server stack as a
-fallback.
+## Validation
 
-## Quest Mechanics To Share Upstream
-
-Port useful Tribal Quest mechanics into the shared engine as reusable world
-systems after the control-profile path is stable. They should enrich both game
-surfaces rather than recreate the current Quest route as a sidecar.
-
-Initial candidates:
-
-- adventurer roles and civilization-specific specialists
-- mana or ability energy for adventurer powers and special units
-- camps as outposts, shelters, staging sites, or civilization structures
-- lairs as hostile spawn structures with pacification or reward states
-- relic chains as exploration objectives tied into Fortress relic and victory
-  systems
-
-Keep Quest-specific presentation, default role tuning, scoring, player bot
-contracts, and adventurer route flavor in this repo unless they clearly belong
-in the shared engine.
-
-## Pull Request Breakdown
-
-Suggested cross-repo sequence:
-
-1. Fortress factors world simulation and control ownership away from the
-   town-controller server surface.
-2. Fortress/shared engine adds `TownController`, `Adventurer`, and `Npc`
-   control profiles with hybrid AI/player action overlay.
-3. Fortress preserves `/player` as the town/fortress-control game surface and
-   expands the strategic viewport for fortress play.
-4. Quest adds a path/package dependency on the Fortress Nim engine and a small
-   adapter that starts a large NPC-fortress world locally.
-5. Quest keeps `/player` as its public adventurer route, modeled after the
-   useful parts of Fortress's current adventurer control semantics.
-6. Quest migrates controls, observations, bots, scoring, and adventurer UI to
-   the shared-engine crop/action contract.
-7. Shared camps, lairs, relic chains, roles, mana, civilization depth, and
-   elevation mechanics move upstream after the attachment path works.
-
-Quest should not depend on a Fortress `/adventure` endpoint, even for local
-debugging. The production Quest route remains `/player`.
-
-## Test Plan
-
-Quest validation before pushing migration changes:
+Quest-side checks:
 
 ```sh
 BITWORLD_PATH=${BITWORLD_PATH:-$(pwd)/../bitworld}
@@ -272,54 +134,6 @@ nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH --path:$TRIBAL_
 git diff --check
 ```
 
-Until Fortress lands the required `tribal_village_engine` Nim module, the build
-command should fail immediately on that missing import. That is the intended
-fail-fast state; Quest should not revive the old local simulation or add a
-Python bridge to make the command green.
-
-Keep the Quest tests intentionally lean while this rewrite is active. They
-should cover the adapter contract, not the deleted local Quest gameplay loop.
-
-Shared engine contract tests to keep or add once implementation starts:
-
-- `TownController` input affects only the assigned town/fortress/civilization
-  slice
-- `Adventurer` input affects only the bound adventurer
-- `Npc` towns and wilderness actors continue ticking while an adventurer player
-  is connected
-- player action overlay does not disable BuiltinAI for unclaimed actors
-- local crop origins and payload shape match the adventurer-centered contract
-- Quest button masks map to shared-engine movement, attack, use, and role
-  abilities
-- replay rows preserve control profile, agent id, and player-token ownership
-
-Surface-specific smoke tests:
-
-- Fortress `/player` still behaves as town/fortress control
-- Fortress strategic viewport can be larger than Quest's tactical viewport
-- Quest can start with `TRIBAL_FORTRESS_PATH` pointing at a sibling Fortress
-  checkout
-- Quest `/player` spawns or resumes an adventurer
-- Quest renders an adventurer-centered crop
-- NPC fortresses continue acting while the Quest player moves
-- Quest reference bots are ported to the Fortress-backed `/player` contract
-  before being reintroduced
-
-## Assumptions
-
-- Fortress is the likely home for the extracted shared engine because it owns
-  the larger world simulation work.
-- This repo should not edit Fortress while Fortress work is happening in
-  parallel.
-- Quest's final public player route should be `/player`, not `/adventure`.
-- Quest should not depend on a separate public `/adventure` protocol. Existing
-  Fortress adventurer code is a design reference, not the Quest runtime
-  boundary.
-- Quest should fail fast when the Fortress Nim engine package or path is
-  missing.
-- Quest keeps its adventurer-centric viewport while Fortress uses a larger
-  fortress/civilization viewport.
-- Adventure mode uses shared-engine JSON/view-plane protocols, not the old
-  BitWorld binary sprite protocol and not a Python runtime bridge.
-- A package or Git dependency extraction is useful follow-up work, but it is not
-  a blocker for documenting or starting the shared-runtime migration.
+Until Fortress lands `tribal_village_engine`, the build should fail immediately
+on that missing import. Do not revive local Quest simulation or add a Python
+bridge to make it pass.
