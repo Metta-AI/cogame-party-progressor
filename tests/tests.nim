@@ -103,13 +103,8 @@ proc testFortressEngineConfigValidation() =
   if dirExists(tempRoot):
     removeDir(tempRoot)
   createDir(tempRoot)
-  createDir(tempRoot / "tribal_village_env")
-  createDir(tempRoot / "tribal_village_env" / "coworld")
-  writeFile(
-    tempRoot / "pyproject.toml",
-    "[project]\nname='coworld-tribal-fortress'\n"
-  )
-  writeFile(tempRoot / "tribal_village_env" / "coworld" / "server.py", "")
+  createDir(tempRoot / "src")
+  writeFile(tempRoot / "src" / "tribal_village_engine.nim", "")
   doAssert tempRoot.isLikelyFortressEngineCheckout()
 
   var engineConfig = config

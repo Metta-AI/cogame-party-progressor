@@ -7,15 +7,20 @@ Last updated: 2026-05-29
 Tribal Quest is the adventurer Coworld game. Tribal Fortress is the shared world
 engine and fortress/town Coworld game.
 
-- Fortress owns the authoritative grid simulation.
+- A single world host owns one authoritative `FortressEngine` instance.
 - Quest owns its public `/player` adventurer route.
 - Fortress `/player` remains town/fortress/civilization control.
-- Quest `/player` claims one adventurer in the Fortress world.
+- Quest `/player` claims one adventurer in that already-created Fortress world.
 - There is no Quest local simulation fallback.
 - There is no production `/adventure` route.
 - There is no Python bridge in the Quest runtime path.
+- There is no second Quest engine when Quest is mounted into a shared host.
 
-The integration is Nim-to-Nim for performance and simplicity.
+The integration is Nim-to-Nim for performance and simplicity. The standalone
+`src/tribal_quest.nim` executable is a development host: it creates a Fortress
+engine only because no external host is present. The integrated shape is a
+host-created engine with the Quest adventurer surface installed on top of that
+same engine object.
 
 ## Fortress Must Provide
 
@@ -72,8 +77,9 @@ input and observation APIs are compatibility/debug surfaces, not the hot path.
 
 ## Quest Must Provide
 
-Quest imports `tribal_village_engine`, starts the engine, and wraps it with its
-own Coworld `/player` route.
+Quest imports `tribal_village_engine` and provides an adventurer surface that
+can be installed onto a host-owned engine. In a Quest-only development run,
+Quest may create the engine first and then install the same surface.
 
 Quest is responsible for:
 
@@ -89,6 +95,33 @@ It consumes typed `adventurerViewCells` crops and packs them into the existing
 BitWorld 128 x 128 player frame protocol without JSON in the tick loop.
 
 Quest should not duplicate Fortress world simulation code.
+
+The mountable surface API is:
+
+```nim
+proc initQuestAdventurerSurface(engine: var FortressEngine, tokens: seq[string])
+proc handleQuestAdventurerHttp(request: Request): bool
+proc handleQuestAdventurerWebSocket(websocket: WebSocket, event: WebSocketEvent, message: Message)
+proc submitQuestAdventurerInputs()
+proc buildQuestAdventurerFrames(): seq[QuestPlayerFrame]
+proc sendQuestAdventurerFrames(frames: openArray[QuestPlayerFrame])
+proc tickQuestAdventurerSurface(): int
+```
+
+A combined host should run the flat shared-world tick as:
+
+```nim
+initQuestAdventurerSurface(engine, tokens)
+
+while running:
+  submitQuestAdventurerInputs()
+  # Other Fortress town/civ surfaces submit their inputs here.
+  engine.step()
+  sendQuestAdventurerFrames(buildQuestAdventurerFrames())
+```
+
+`tickQuestAdventurerSurface` is only the Quest-only convenience path. It submits
+Quest inputs, steps the engine, and sends Quest frames in one call.
 
 ## Action Contract
 

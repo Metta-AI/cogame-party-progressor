@@ -8,6 +8,12 @@ always `fortress`, and missing Fortress Nim engine code should fail at build or
 startup instead of falling back to an old route. There is no Python bridge and
 no production `/adventure` route.
 
+The intended integrated runtime has one host-owned `FortressEngine` world.
+Quest installs its adventurer `/player` surface onto that existing engine and
+does not create a second world. The standalone binary below is only the
+Quest-only development host for exercising the same surface before a combined
+Fortress host imports it.
+
 ## Running
 
 Use a sibling Fortress checkout while the shared runtime is local:
@@ -42,8 +48,8 @@ nim c \
 ```
 
 Quest expects the Fortress checkout on the Nim path to expose
-`tribal_village_engine`. Quest calls that Nim engine directly from its own
-`/player` server.
+`src/tribal_village_engine.nim`. Quest calls that Nim engine directly from the
+adventurer surface.
 
 Optional config fields:
 
@@ -61,6 +67,7 @@ Optional config fields:
 
 - validates that only `worldRuntime = fortress` is accepted
 - discovers `TRIBAL_FORTRESS_PATH` or `../coworld-tribal-fortress`
+- fails fast unless that checkout exposes `src/tribal_village_engine.nim`
 - targets a 768 by 480 Fortress world with 30 town agents per team
 - caps Quest adventurer slots at 64
 - forwards button masks through the typed Fortress engine API
@@ -72,9 +79,10 @@ not a second runtime in this repo.
 
 ## Project Layout
 
-- `src/tribal_quest.nim` starts the Quest `/player` surface on Fortress.
+- `src/tribal_quest.nim` is the Quest-only development host that starts a
+  Fortress engine and installs the Quest `/player` adventurer surface.
 - `src/tribal_quest/player_surface.nim` owns the Quest `/player` websocket and
-  packs Fortress adventurer crops into BitWorld frames.
+  exposes mount hooks for a host-owned Fortress engine.
 - `src/tribal_quest/fortress_engine.nim` contains the Quest-side adapter
   contract.
 - `players/adventurer/adventurer.nim` is the bundled Nim websocket pilot.

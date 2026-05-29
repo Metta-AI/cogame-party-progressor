@@ -12,6 +12,8 @@ const
   QuestViewCells = QuestAdventureCropTiles * QuestAdventureCropTiles
 
 type
+  QuestPlayerFrame* = tuple[websocket: WebSocket, frame: string]
+
   ViewerState = object
     slot: int
     lastMask: uint8
@@ -52,6 +54,10 @@ proc tokenSlot(token: string): int =
       return i
   -1
 
+proc surfaceIsInitialized(): bool {.gcsafe.} =
+  {.gcsafe.}:
+    result = not surface.engine.isNil
+
 proc firstAvailableSlot(): int =
   if surface.engine.isNil:
     return -1
@@ -80,8 +86,18 @@ proc claimViewerSlot(request: Request): int =
   if surface.engine.isNil or result < 0 or result >= surface.engine[].adventurerSlots:
     return -1
 
-proc httpHandler(request: Request) {.gcsafe.} =
+proc handleQuestAdventurerHttp*(request: Request): bool {.gcsafe.} =
+  ## Handles Quest-owned adventurer routes for a host that already owns
+  ## the Fortress engine/world. Returns false when the route is not ours.
   if request.path == PlayerSocketPath and request.httpMethod == "GET":
+    result = true
+    if not surfaceIsInitialized():
+      request.respond(
+        500,
+        textHeaders(),
+        "Quest adventurer surface is not initialized\n"
+      )
+      return
     {.gcsafe.}:
       withLock surface.lock:
         let slot = claimViewerSlot(request)
@@ -101,6 +117,7 @@ proc httpHandler(request: Request) {.gcsafe.} =
 
   if request.path in [PlayerClientRoute, PlayerClientHtmlRoute] and
       request.httpMethod == "GET":
+    result = true
     try:
       request.respond(
         200,
@@ -117,6 +134,7 @@ proc httpHandler(request: Request) {.gcsafe.} =
       QrcodeClientRoute,
       QrcodeClientPath
     ] and request.httpMethod == "GET":
+    result = true
     try:
       request.respond(
         200,
@@ -128,11 +146,14 @@ proc httpHandler(request: Request) {.gcsafe.} =
     return
 
   if request.path == "/" and request.httpMethod == "GET":
+    result = true
     request.respond(200, textHeaders(), "Tribal Quest Fortress player surface\n")
-  else:
+
+proc httpHandler(request: Request) {.gcsafe.} =
+  if not handleQuestAdventurerHttp(request):
     request.respond(404, textHeaders(), "not found\n")
 
-proc websocketHandler(
+proc handleQuestAdventurerWebSocket*(
   websocket: WebSocket,
   event: WebSocketEvent,
   message: Message
@@ -152,6 +173,13 @@ proc websocketHandler(
     {.gcsafe.}:
       withLock surface.lock:
         surface.closedSockets.add(websocket)
+
+proc websocketHandler(
+  websocket: WebSocket,
+  event: WebSocketEvent,
+  message: Message
+) {.gcsafe.} =
+  handleQuestAdventurerWebSocket(websocket, event, message)
 
 proc serverThreadProc(args: ServerThreadArgs) {.thread.} =
   args.server[].serve(Port(args.port), args.address)
@@ -187,17 +215,50 @@ proc pruneClosedViewers() =
       surface.viewers.del(websocket)
   surface.closedSockets.setLen(0)
 
-proc stepAndBuildFrames(): seq[tuple[websocket: WebSocket, frame: string]] =
+proc submitQuestAdventurerInputs*() =
+  ## Pushes the latest Quest button masks into the shared Fortress engine.
+  ## The caller owns the engine step so multiple surfaces can share one tick.
+  if not surfaceIsInitialized():
+    raise newException(ValueError, "Quest adventurer surface is not initialized")
   withLock surface.lock:
     pruneClosedViewers()
     for _, viewer in surface.viewers.pairs:
       surface.engine[].submitAdventurerButtons(viewer.slot, viewer.lastMask)
-    surface.engine[].step()
+
+proc buildQuestAdventurerFrames*(): seq[QuestPlayerFrame] =
+  ## Builds player frames from the current post-step Fortress engine state.
+  if not surfaceIsInitialized():
+    raise newException(ValueError, "Quest adventurer surface is not initialized")
+  withLock surface.lock:
+    pruneClosedViewers()
     for websocket, viewer in surface.viewers.pairs:
       result.add((
         websocket: websocket,
         frame: surface.engine[].frameFromEngine(viewer.slot)
       ))
+
+proc stepAndBuildFrames(): seq[QuestPlayerFrame] =
+  submitQuestAdventurerInputs()
+  surface.engine[].step()
+  buildQuestAdventurerFrames()
+
+proc sendQuestAdventurerFrames*(frames: openArray[QuestPlayerFrame]) =
+  ## Sends already-built frames and marks broken sockets for release.
+  if not surfaceIsInitialized():
+    raise newException(ValueError, "Quest adventurer surface is not initialized")
+  for item in frames:
+    try:
+      item.websocket.send(item.frame, BinaryMessage)
+    except CatchableError:
+      withLock surface.lock:
+        surface.closedSockets.add(item.websocket)
+
+proc tickQuestAdventurerSurface*(): int =
+  ## Convenience one-process tick: submit Quest inputs, step the shared engine,
+  ## render Quest frames, and send them. Combined hosts should call the pieces.
+  let frames = stepAndBuildFrames()
+  sendQuestAdventurerFrames(frames)
+  frames.len
 
 proc writeJsonFile(path: string, node: JsonNode) =
   if path.len > 0:
@@ -206,20 +267,20 @@ proc writeJsonFile(path: string, node: JsonNode) =
 proc runLoop(): int =
   var previousTick = getMonoTime()
   while surface.engine[].maxSteps <= 0 or surface.engine[].tick < surface.engine[].maxSteps:
-    let frames = stepAndBuildFrames()
-    for item in frames:
-      try:
-        item.websocket.send(item.frame, BinaryMessage)
-      except CatchableError:
-        withLock surface.lock:
-          surface.closedSockets.add(item.websocket)
+    discard tickQuestAdventurerSurface()
     inc result
     let elapsed = inMilliseconds(getMonoTime() - previousTick)
     if elapsed < StepMilliseconds:
       sleep(StepMilliseconds - elapsed.int)
     previousTick = getMonoTime()
 
-proc initSurface(engine: var FortressEngine, tokens: seq[string]) =
+proc initQuestAdventurerSurface*(
+  engine: var FortressEngine,
+  tokens: seq[string]
+) =
+  ## Installs Quest's adventurer controls onto an existing Fortress engine.
+  if tokens.len > engine.adventurerSlots:
+    raise newException(ValueError, "more player tokens than adventurer slots")
   initLock(surface.lock)
   surface.engine = addr engine
   surface.tokens = tokens
@@ -240,9 +301,7 @@ proc runQuestPlayerSurface*(
   discard loadReplayPath
   discard maxGames
   discard adventurerRole
-  if tokens.len > engine.adventurerSlots:
-    raise newException(ValueError, "more player tokens than adventurer slots")
-  initSurface(engine, tokens)
+  initQuestAdventurerSurface(engine, tokens)
 
   let httpServer = newServer(
     httpHandler,

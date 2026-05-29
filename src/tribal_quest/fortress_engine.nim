@@ -68,9 +68,7 @@ proc isLikelyFortressEngineCheckout*(path: string): bool =
   ## Returns true when a path looks like the sibling Fortress repo/package.
   if path.len == 0 or not dirExists(path):
     return false
-  fileExists(path / "pyproject.toml") and
-    dirExists(path / "tribal_village_env") and
-    fileExists(path / "tribal_village_env" / "coworld" / "server.py")
+  fileExists(path / "src" / "tribal_village_engine.nim")
 
 proc validateAdventurerSlot*(slot: int) =
   ## Raises when an adventurer slot is outside the shared engine v1 slot range.
@@ -98,7 +96,7 @@ proc validateFortressEngineConfig*(config: FortressEngineConfig) =
   if not config.path.isLikelyFortressEngineCheckout():
     raise newException(
       ValueError,
-      "fortressEnginePath does not look like coworld-tribal-fortress: " &
+      "fortressEnginePath does not expose src/tribal_village_engine.nim: " &
         config.path
     )
 
