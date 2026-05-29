@@ -25,25 +25,12 @@ proc testFortressRuntimeIsRequired() =
 proc testAdventurerInputPayloads() =
   let mask = ButtonUp or ButtonRight or ButtonA
   let input = parseJson(adventurerInputJson(mask))
-  doAssert input["type"].getStr() == AdventurerInputType
-  doAssert input["control_profile"].getStr() == AdventurerControlProfile
-  doAssert input["move"].getStr() == "NE"
-  doAssert input["attack"].getBool()
-  doAssert not input["use"].getBool()
-  doAssert input["buttons"]["up"].getBool()
-  doAssert input["buttons"]["right"].getBool()
-  doAssert input["buttons"]["a"].getBool()
-  doAssert not input["buttons"]["b"].getBool()
-
-  let conflict = parseJson(adventurerInputJson(ButtonUp or ButtonDown or ButtonB))
-  doAssert conflict["move"].getStr() == "none",
-    "opposed vertical inputs should cancel for Fortress adventurer movement"
-  doAssert conflict["use"].getBool()
+  doAssert input["type"].getStr() == AdventurerButtonsType
+  doAssert input["buttons"].getInt() == int(mask)
 
   let raw = parseJson(adventurerRawActionJson(17))
-  doAssert raw["type"].getStr() == AdventurerInputType
-  doAssert raw["control_profile"].getStr() == AdventurerControlProfile
-  doAssert raw["raw_action"].getInt() == 17
+  doAssert raw["type"].getStr() == AdventurerActionType
+  doAssert raw["action"].getInt() == 17
 
 proc testAdventurerObservationParsing() =
   let observation = parseFortressAdventurerObservation($(%*{

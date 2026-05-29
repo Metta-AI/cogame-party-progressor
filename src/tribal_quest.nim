@@ -2,7 +2,7 @@ import std/[httpclient, json, os, parseopt, strutils]
 
 import bitworld/protocol
 import jsony
-import quest_runtime
+import tribal_village_engine
 import tribal_quest/fortress_engine
 
 type
@@ -363,21 +363,30 @@ when isMainModule:
   config.validate()
   config.echoStartupPaths()
 
-  let engineConfig = config.fortressEngineConfig()
-  runQuestAdventurerPlayerServer(
-    address = config.address,
-    port = config.port,
-    seed = config.seed,
-    saveReplayPath = config.saveReplayPath,
-    loadReplayPath = config.loadReplayPath,
-    saveScoresPath = config.saveScoresPath,
-    tokens = config.tokens,
-    maxTicks = config.maxTicks,
-    maxGames = config.maxGames,
-    fortressEnginePath = engineConfig.path,
-    adventurerRole = engineConfig.adventurerRole,
-    worldWidth = engineConfig.worldWidth,
-    worldHeight = engineConfig.worldHeight,
-    townAgentsPerTeam = engineConfig.townAgentsPerTeam,
-    adventurerSlots = engineConfig.adventurerSlots
+  let questEngineConfig = config.fortressEngineConfig()
+  var engine = tribal_village_engine.initFortressEngine(
+    tribal_village_engine.FortressEngineConfig(
+      maxSteps: config.maxTicks,
+      seed: config.seed,
+      adventurerViewRadius: QuestAdventureCropTiles div 2,
+      aiMode: "hybrid",
+      worldWidth: questEngineConfig.worldWidth,
+      worldHeight: questEngineConfig.worldHeight,
+      townAgentsPerTeam: questEngineConfig.townAgentsPerTeam,
+      adventurerSlots: questEngineConfig.adventurerSlots
+    )
   )
+  try:
+    runQuestPlayerSurface(
+      engine = engine,
+      address = config.address,
+      port = config.port,
+      saveReplayPath = config.saveReplayPath,
+      loadReplayPath = config.loadReplayPath,
+      saveScoresPath = config.saveScoresPath,
+      tokens = config.tokens,
+      maxGames = config.maxGames,
+      adventurerRole = questEngineConfig.adventurerRole
+    )
+  finally:
+    engine.close()

@@ -49,10 +49,10 @@ The engine should distinguish these control profiles explicitly:
 - `Npc`: built-in AI controls the agent, settlement, monster, or wilderness
   actor
 
-The current Fortress-side `/adventure` work is useful as a reference for the
+The current Fortress-side adventurer work is useful as a reference for the
 adventurer observation/action shape, but Quest should not consume it as a
 separate runtime protocol. Quest should own its public `/player` route and wire
-that route directly to the installed Fortress engine/runtime APIs.
+that route directly to the installed Fortress Nim engine API.
 
 ## Shared Engine Contract
 
@@ -95,18 +95,15 @@ the shared engine remains tile/grid based. Adventurer clients should not receive
 the full Fortress world every tick.
 
 The adventurer action adapter should accept Quest's current button-mask style
-and map it into engine actions:
+and forward it to the engine:
 
-- D-pad maps to movement
-- `A` maps to attack facing
-- `B` maps to use/interact facing
-- role powers and mana actions map to explicit adventurer abilities as they are
-  upstreamed
+- Quest sends `{"type":"adventurer.buttons","buttons": <mask>}`
+- raw tests may send `{"type":"adventurer.action","action": <id>}`
+- the Fortress engine owns decoding masks into move, attack, use, and future
+  role abilities
 
-The payload and control semantics can be modeled after Fortress's current
-adventurer work: raw engine actions are useful for tests and debugging, and
-button masks remain the compatibility layer for existing Quest clients and
-bots.
+Button masks remain the compatibility layer for existing Quest clients and bots
+without duplicating action semantics in Quest.
 
 ## Fortress Dependency And Install Shape
 
@@ -124,7 +121,8 @@ after Fortress extracts the shared engine cleanly.
 Quest owns the adapter layer that turns Fortress engine state into the Quest
 Coworld player surface:
 
-- start or construct the Fortress engine/world runtime from Quest
+- import the Fortress Nim engine module from `TRIBAL_FORTRESS_PATH/src`
+- construct the Fortress engine/world runtime from Quest
 - configure it for the large world, NPC fortresses, civilizations, elevation,
   camps, lairs, and adventurer slots
 - spawn or bind one adventurer per Quest `/player` slot
@@ -135,10 +133,10 @@ Coworld player surface:
   `sprite_view`, observation, and agent-state data
 - write Quest scores/replays from the adventurer perspective
 
-The adapter should reuse Fortress global and environment state directly where
-possible. Quest should avoid duplicating worldgen, terrain storage, civilization
-state, NPC stepping, or global map export once those are available from the
-installed Fortress engine.
+The adapter should reuse Fortress global and environment state directly through
+the Nim engine API. Quest should avoid duplicating worldgen, terrain storage,
+civilization state, NPC stepping, or global map export once those are available
+from the installed Fortress engine.
 
 ## World And Civilizations
 
@@ -195,8 +193,8 @@ The first Quest migration should:
 
 - keep the Quest player-facing adventure client shape where it helps
 - keep Quest's public Coworld player entrypoint as `/player`
-- require the shared Fortress engine through a local/package dependency, not a
-  separate public adventure socket
+- require the shared Fortress Nim engine through a local/package dependency,
+  not a separate public adventure socket and not a Python bridge
 - launch the engine with an `Adventurer` control profile for Quest players
 - bind each Quest player token to one adventurer agent
 - keep towns, fortresses, wilderness actors, and hostile groups running under
@@ -250,7 +248,7 @@ Suggested cross-repo sequence:
    control profiles with hybrid AI/player action overlay.
 3. Fortress preserves `/player` as the town/fortress-control game surface and
    expands the strategic viewport for fortress play.
-4. Quest adds a path/package dependency on the Fortress engine and a small
+4. Quest adds a path/package dependency on the Fortress Nim engine and a small
    adapter that starts a large NPC-fortress world locally.
 5. Quest keeps `/player` as its public adventurer route, modeled after the
    useful parts of Fortress's current adventurer control semantics.
@@ -259,9 +257,8 @@ Suggested cross-repo sequence:
 7. Shared camps, lairs, relic chains, roles, mana, civilization depth, and
    elevation mechanics move upstream after the attachment path works.
 
-If Fortress keeps a `/adventure` endpoint for its own debugging, Quest may use
-its schema as a reference, but the Quest implementation should not be a socket
-proxy. The production Quest route remains `/player`.
+Quest should not depend on a Fortress `/adventure` endpoint, even for local
+debugging. The production Quest route remains `/player`.
 
 ## Test Plan
 
@@ -275,10 +272,10 @@ nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH --path:$TRIBAL_
 git diff --check
 ```
 
-Until Fortress lands the required `quest_runtime` Nim module, the build command
-should fail immediately on that missing import. That is the intended fail-fast
-state; Quest should not revive the old local simulation to make the command
-green.
+Until Fortress lands the required `tribal_village_engine` Nim module, the build
+command should fail immediately on that missing import. That is the intended
+fail-fast state; Quest should not revive the old local simulation or add a
+Python bridge to make the command green.
 
 Keep the Quest tests intentionally lean while this rewrite is active. They
 should cover the adapter contract, not the deleted local Quest gameplay loop.
@@ -318,10 +315,11 @@ Surface-specific smoke tests:
 - Quest should not depend on a separate public `/adventure` protocol. Existing
   Fortress adventurer code is a design reference, not the Quest runtime
   boundary.
-- Quest should fail fast when the Fortress runtime package or path is missing.
+- Quest should fail fast when the Fortress Nim engine package or path is
+  missing.
 - Quest keeps its adventurer-centric viewport while Fortress uses a larger
   fortress/civilization viewport.
 - Adventure mode uses shared-engine JSON/view-plane protocols, not the old
-  BitWorld binary sprite protocol.
+  BitWorld binary sprite protocol and not a Python runtime bridge.
 - A package or Git dependency extraction is useful follow-up work, but it is not
   a blocker for documenting or starting the shared-runtime migration.

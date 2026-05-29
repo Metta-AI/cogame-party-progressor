@@ -1,5 +1,4 @@
 import std/[json, os, strutils]
-import bitworld/protocol
 
 const
   FortressEnginePathEnv* = "TRIBAL_FORTRESS_PATH"
@@ -11,22 +10,12 @@ const
   FortressAdventurerSlots* = 64
   QuestAdventureCropTiles* = 11
   QuestBitWorldScreenPixels* = 128
-  AdventurerInputType* = "adventurer.input"
+  AdventurerButtonsType* = "adventurer.buttons"
+  AdventurerActionType* = "adventurer.action"
   AdventurerControlProfile* = "Adventurer"
   NpcControlProfile* = "Npc"
 
 type
-  AdventurerMove* = enum
-    MoveNone = "none"
-    MoveN = "N"
-    MoveS = "S"
-    MoveW = "W"
-    MoveE = "E"
-    MoveNW = "NW"
-    MoveNE = "NE"
-    MoveSW = "SW"
-    MoveSE = "SE"
-
   FortressEngineConfig* = object
     path*: string
     adventurerRole*: string
@@ -113,61 +102,19 @@ proc validateFortressEngineConfig*(config: FortressEngineConfig) =
         config.path
     )
 
-proc moveName*(move: AdventurerMove): string =
-  ## Returns the stable action value for one adventurer movement direction.
-  $move
-
-proc adventurerMoveFromMask*(mask: uint8): AdventurerMove =
-  ## Converts BitWorld direction bits into shared-engine adventurer movement.
-  let
-    north = (mask and ButtonUp) != 0 and (mask and ButtonDown) == 0
-    south = (mask and ButtonDown) != 0 and (mask and ButtonUp) == 0
-    west = (mask and ButtonLeft) != 0 and (mask and ButtonRight) == 0
-    east = (mask and ButtonRight) != 0 and (mask and ButtonLeft) == 0
-  if north and west:
-    MoveNW
-  elif north and east:
-    MoveNE
-  elif south and west:
-    MoveSW
-  elif south and east:
-    MoveSE
-  elif north:
-    MoveN
-  elif south:
-    MoveS
-  elif west:
-    MoveW
-  elif east:
-    MoveE
-  else:
-    MoveNone
-
 proc adventurerInputJson*(mask: uint8): string =
-  ## Builds the in-process action payload Quest maps from /player input.
+  ## Builds the engine action payload Quest forwards from /player input.
   let node = %*{
-    "type": AdventurerInputType,
-    "control_profile": AdventurerControlProfile,
-    "move": mask.adventurerMoveFromMask().moveName(),
-    "attack": (mask and ButtonA) != 0,
-    "use": (mask and ButtonB) != 0,
-    "buttons": {
-      "up": (mask and ButtonUp) != 0,
-      "down": (mask and ButtonDown) != 0,
-      "left": (mask and ButtonLeft) != 0,
-      "right": (mask and ButtonRight) != 0,
-      "a": (mask and ButtonA) != 0,
-      "b": (mask and ButtonB) != 0
-    }
+    "type": AdventurerButtonsType,
+    "buttons": int(mask)
   }
   $node
 
 proc adventurerRawActionJson*(action: int): string =
   ## Builds a raw shared-engine action payload for tests and debugging.
   $(%*{
-    "type": AdventurerInputType,
-    "control_profile": AdventurerControlProfile,
-    "raw_action": action
+    "type": AdventurerActionType,
+    "action": action
   })
 
 proc getString(node: JsonNode, names: openArray[string], default = ""): string =

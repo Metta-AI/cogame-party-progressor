@@ -30,9 +30,10 @@ Open:
 
 - `http://localhost:2000/client/player?address=ws://localhost:2000/player&name=human`
 
-Quest expects the Fortress checkout on the Nim path to expose
-`quest_runtime.runQuestAdventurerPlayerServer`. That runtime is called directly;
-there is no alternate `/adventure` proxy or compile-time fallback.
+Quest expects the Fortress checkout on the Nim path to expose a small
+`tribal_village_engine` module. Quest should call that Nim engine directly from
+its own `/player` server; there is no Python bridge, alternate `/adventure`
+proxy, or compile-time fallback.
 
 Optional config fields:
 
@@ -52,7 +53,7 @@ Optional config fields:
 - discovers `TRIBAL_FORTRESS_PATH` or `../coworld-tribal-fortress`
 - targets a 768 by 480 Fortress world with 30 town agents per team
 - caps Quest adventurer slots at 64
-- maps button masks into `adventurer.input` payloads
+- forwards button masks as `adventurer.buttons` payloads
 - parses the local `view_plane` fields Quest needs for an adventurer crop
 
 The old Party Progressor mechanics are now product reference material for what

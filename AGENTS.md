@@ -29,5 +29,6 @@ nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH --path:$TRIBAL_
 git diff --check
 ```
 
-If the Fortress checkout has not landed `quest_runtime` yet, the build should
-fail at that missing import. Do not add a local fallback runtime to make it pass.
+If the Fortress checkout has not landed the `tribal_village_engine` Nim module
+yet, the build should fail at that missing import. Do not add a local fallback
+runtime or Python bridge to make it pass.
