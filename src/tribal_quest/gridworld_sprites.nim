@@ -1,6 +1,7 @@
 import std/[os, sets, strutils, tables]
 
 import pixie
+import environment
 import tribal_village_engine
 import types
 
@@ -51,100 +52,51 @@ proc directionKey(orientation: Orientation): string =
   of SE: "se"
 
 proc terrainSpriteKeyLocal(terrain: TerrainType): string =
-  case terrain
-  of Empty: "grass"
-  of Water: "water"
-  of ShallowWater: "shallow_water"
-  of Bridge: "bridge"
-  of Fertile: "fertile"
-  of Road: "road"
-  of Grass: "grass"
-  of Dune: "dune"
-  of Sand: "sand"
-  of Snow: "snow"
-  of Mud: "mud"
-  of Mountain: "dune"
-  of RampUpN: "oriented/ramp_up_n"
-  of RampUpS: "oriented/ramp_up_s"
-  of RampUpW: "oriented/ramp_up_w"
-  of RampUpE: "oriented/ramp_up_e"
-  of RampDownN: "oriented/ramp_down_n"
-  of RampDownS: "oriented/ramp_down_s"
-  of RampDownW: "oriented/ramp_down_w"
-  of RampDownE: "oriented/ramp_down_e"
+  let key = terrainSpriteKey(terrain)
+  if key.len > 0:
+    key
+  else:
+    "grass"
 
 proc thingSpriteKeyLocal(kind: ThingKind): string =
-  case kind
-  of Agent: "oriented/gatherer"
-  of Wall: "oriented/wall"
-  of Door: "door"
-  of Tree: "tree"
-  of Wheat: "wheat"
-  of Fish: "fish"
-  of Relic: "goblet"
-  of Stone: "stone"
-  of Gold: "gold"
-  of Bush: "bush"
-  of Cactus: "cactus"
-  of Stalagmite: "stalagmite"
-  of Magma: "magma"
-  of Altar: "altar"
-  of Spawner: "spawner"
-  of Tumor: "tumor"
-  of Cow: "oriented/cow"
-  of Bear: "oriented/bear"
-  of Wolf: "oriented/wolf"
-  of Corpse: "corpse"
-  of Skeleton: "skeleton"
-  of ClayOven: "clay_oven"
-  of WeavingLoom: "weaving_loom"
-  of Outpost: "outpost"
-  of GuardTower: "guard_tower"
-  of Barrel: "barrel"
-  of Mill: "mill"
-  of Granary: "granary"
-  of LumberCamp: "lumber_camp"
-  of Quarry: "quarry"
-  of MiningCamp: "mining_camp"
-  of Stump: "stump"
-  of Lantern: "lantern"
-  of TownCenter: "town_center"
-  of House: "house"
-  of Barracks: "barracks"
-  of ArcheryRange: "archery_range"
-  of Stable: "stable"
-  of SiegeWorkshop: "siege_workshop"
-  of MangonelWorkshop: "mangonel_workshop"
-  of TrebuchetWorkshop: "trebuchet_workshop"
-  of Blacksmith: "blacksmith"
-  of Market: "market"
-  of Dock: "dock"
-  of Monastery: "monastery"
-  of Temple: "temple"
-  of University: "university"
-  of Castle: "castle"
-  of Wonder: "wonder"
-  of ControlPoint: "control_point"
-  of GoblinHive: "goblin_hive"
-  of GoblinHut: "goblin_hut"
-  of GoblinTotem: "goblin_totem"
-  of Stubble: "stubble"
-  of CliffEdgeN: "cliff_edge_ew_s"
-  of CliffEdgeE: "cliff_edge_ns_w"
-  of CliffEdgeS: "cliff_edge_ew"
-  of CliffEdgeW: "cliff_edge_ns"
-  of CliffCornerInNE: "oriented/cliff_corner_in_ne"
-  of CliffCornerInSE: "oriented/cliff_corner_in_se"
-  of CliffCornerInSW: "oriented/cliff_corner_in_sw"
-  of CliffCornerInNW: "oriented/cliff_corner_in_nw"
-  of CliffCornerOutNE: "oriented/cliff_corner_out_ne"
-  of CliffCornerOutSE: "oriented/cliff_corner_out_se"
-  of CliffCornerOutSW: "oriented/cliff_corner_out_sw"
-  of CliffCornerOutNW: "oriented/cliff_corner_out_nw"
-  of WaterfallN: "waterfall_n"
-  of WaterfallE: "waterfall_e"
-  of WaterfallS: "waterfall_s"
-  of WaterfallW: "waterfall_w"
+  thingSpriteKey(kind)
+
+when declared(QuestMonster):
+  proc questMonsterSpeciesName(thing: Thing): string =
+    when compiles(thing.questMonsterSpecies):
+      $thing.questMonsterSpecies
+    else:
+      ""
+
+  proc questMonsterSpriteKeyLocal(speciesName: string): string =
+    let lower = speciesName.toLowerAscii()
+    if "goblin" in lower:
+      "oriented/goblin"
+    elif "slime" in lower or "scorpion" in lower or "burrower" in lower or
+        "scarab" in lower or "leech" in lower:
+      "oriented/tumor"
+    elif "wraith" in lower or "mender" in lower or "witch" in lower or
+        "shaman" in lower or "seer" in lower or "necromancer" in lower:
+      "skeleton"
+    elif "bear" in lower or "boar" in lower or "buck" in lower or
+        "yeti" in lower or "troll" in lower or "maw" in lower or
+        "titan" in lower:
+      "oriented/bear"
+    else:
+      "oriented/wolf"
+
+  proc questMonsterLabelLocal(speciesName: string): string =
+    result = speciesName
+    if result.startsWith("QuestMonster"):
+      result = result["QuestMonster".len .. ^1]
+    if result.len == 0 or result == "None":
+      return "quest monster"
+    var label = newStringOfCap(result.len + 4)
+    for i, ch in result:
+      if i > 0 and ch.isUpperAscii():
+        label.add(' ')
+      label.add(ch.toLowerAscii())
+    result = label
 
 proc unitSpriteBase(unitClass: AgentUnitClass, agentId: int, packed: bool): string =
   case unitClass
@@ -314,11 +266,17 @@ proc terrainBaseColor(terrain: TerrainType): tuple[r, g, b, a: uint8] =
     (r: 202'u8, g: 210'u8, b: 204'u8, a: 255'u8)
   of Mud:
     (r: 116'u8, g: 96'u8, b: 70'u8, a: 255'u8)
+  of CanyonWash:
+    (r: 115'u8, g: 80'u8, b: 55'u8, a: 255'u8)
+  of CanyonFloor:
+    (r: 175'u8, g: 80'u8, b: 45'u8, a: 255'u8)
+  of CanyonRim:
+    (r: 145'u8, g: 55'u8, b: 35'u8, a: 255'u8)
   of Mountain:
     (r: 118'u8, g: 112'u8, b: 96'u8, a: 255'u8)
   of RampUpN, RampUpS, RampUpW, RampUpE, RampDownN, RampDownS, RampDownW, RampDownE:
     (r: 142'u8, g: 124'u8, b: 86'u8, a: 255'u8)
-  of Empty:
+  else:
     (r: 154'u8, g: 140'u8, b: 86'u8, a: 255'u8)
 
 proc spriteForTerrainBase(
@@ -351,6 +309,14 @@ proc spriteForThing(
       "unit " & $thing.unitClass,
       thing.orientation
     )
+  when declared(QuestMonster):
+    if thing.kind == QuestMonster:
+      let speciesName = thing.questMonsterSpeciesName()
+      return registry.spriteForAsset(
+        questMonsterSpriteKeyLocal(speciesName),
+        questMonsterLabelLocal(speciesName),
+        thing.orientation
+      )
   registry.spriteForAsset(thingSpriteKeyLocal(thing.kind), "thing " & $thing.kind, thing.orientation)
 
 proc addCellObject(
