@@ -11,6 +11,7 @@ const
   QuestSpriteViewTiles* = QuestAdventureCropTiles
 
   TerrainObjectBase = 1_000
+  TerrainAssetObjectBase = 2_000
   BackgroundObjectBase = 10_000
   ThingObjectBase = 20_000
   SelectionObjectId = 30_000
@@ -297,6 +298,45 @@ proc spriteForTerrain(
 ): SpriteAsset =
   registry.spriteForAsset(terrainSpriteKeyLocal(terrain), "terrain " & $terrain)
 
+proc terrainBaseColor(terrain: TerrainType): tuple[r, g, b, a: uint8] =
+  case terrain
+  of Water:
+    (r: 54'u8, g: 120'u8, b: 172'u8, a: 255'u8)
+  of ShallowWater:
+    (r: 96'u8, g: 160'u8, b: 184'u8, a: 255'u8)
+  of Bridge, Road:
+    (r: 156'u8, g: 138'u8, b: 94'u8, a: 255'u8)
+  of Fertile, Grass:
+    (r: 160'u8, g: 150'u8, b: 82'u8, a: 255'u8)
+  of Dune, Sand:
+    (r: 208'u8, g: 178'u8, b: 104'u8, a: 255'u8)
+  of Snow:
+    (r: 202'u8, g: 210'u8, b: 204'u8, a: 255'u8)
+  of Mud:
+    (r: 116'u8, g: 96'u8, b: 70'u8, a: 255'u8)
+  of Mountain:
+    (r: 118'u8, g: 112'u8, b: 96'u8, a: 255'u8)
+  of RampUpN, RampUpS, RampUpW, RampUpE, RampDownN, RampDownS, RampDownW, RampDownE:
+    (r: 142'u8, g: 124'u8, b: 86'u8, a: 255'u8)
+  of Empty:
+    (r: 154'u8, g: 140'u8, b: 86'u8, a: 255'u8)
+
+proc spriteForTerrainBase(
+  registry: var QuestSpriteRegistry,
+  terrain: TerrainType
+): SpriteAsset =
+  let label = "terrain base " & $terrain
+  registry.spriteForLabel(
+    "terrain-base/" & $terrain,
+    label,
+    rgbaTile(
+      QuestSpriteTilePixels,
+      QuestSpriteTilePixels,
+      terrainBaseColor(terrain),
+      terrainBaseColor(terrain)
+    )
+  )
+
 proc spriteForThing(
   registry: var QuestSpriteRegistry,
   thing: Thing,
@@ -407,14 +447,24 @@ proc buildAdventurerSpriteFrame*(
       if worldX < 0 or worldY < 0 or worldX >= MapWidth or worldY >= MapHeight:
         continue
 
+      let terrain = engine.env.terrain[worldX][worldY]
       packet.addCellObject(
         knownSprites,
         registry,
-        registry.spriteForTerrain(engine.env.terrain[worldX][worldY]),
+        registry.spriteForTerrainBase(terrain),
         TerrainObjectBase + localY * view.width + localX,
         localX,
         localY,
         0
+      )
+      packet.addCellObject(
+        knownSprites,
+        registry,
+        registry.spriteForTerrain(terrain),
+        TerrainAssetObjectBase + localY * view.width + localX,
+        localX,
+        localY,
+        2
       )
 
       let background = engine.env.backgroundGrid[worldX][worldY]

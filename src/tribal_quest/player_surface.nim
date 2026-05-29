@@ -121,6 +121,33 @@ proc parsePlayerProtocol(request: Request): int =
 
 proc playerClientHtml(protocol: QuestPlayerProtocol): string =
   result = readClientHtml(PlayerClientRoute)
+  result = result.replace(
+    "<canvas id=\"c\" width=\"128\" height=\"128\"></canvas>",
+    "<canvas id=\"c\" width=\"128\" height=\"128\" tabindex=\"0\" autofocus></canvas>"
+  )
+  result = result.replace(
+    "function release(){k={};sendMask(0,true)}",
+    "function release(){k={};sendMask(0,true)}" &
+      "function keyMask(){let h=0;" &
+      "h|=!z&&(k.ArrowUp||k.KeyW)?1:0;" &
+      "h|=!z&&(k.ArrowDown||k.KeyS)?2:0;" &
+      "h|=!z&&(k.ArrowLeft||k.KeyA)?4:0;" &
+      "h|=!z&&(k.ArrowRight||k.KeyD)?8:0;" &
+      "h|=!z&&(k.Space||k.KeyL)?16:0;" &
+      "h|=!z&&(k.KeyZ||k.KeyJ)?32:0;" &
+      "h|=!z&&(k.KeyX||k.KeyK)?64:0;" &
+      "return h&127}"
+  )
+  result = result.replace(
+    "fit();\nonkeydown=",
+    "fit();c.focus();\nonpointerdown=()=>c.focus();\nonkeydown="
+  )
+  result = result.replace(
+    "  k[e.code]=1\n};\nonkeyup=e=>{k[e.code]=0};",
+    "  if(e.code.startsWith(\"Arrow\"))e.preventDefault();\n" &
+      "  k[e.code]=1;sendMask(keyMask(),true)\n" &
+      "};\nonkeyup=e=>{k[e.code]=0;sendMask(keyMask(),true)};"
+  )
   if protocol == PlayerProtocolPixel:
     result = result.replace("m+\"/player\"", "m+\"/player?protocol=pixel\"")
 
