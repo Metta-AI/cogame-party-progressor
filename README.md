@@ -27,7 +27,7 @@ nim c \
 
 Open:
 
-- `http://localhost:2000/client/player?address=ws://localhost:2000/player&name=human`
+- `http://127.0.0.1:2000/client/player?slot=0&name=human&reconnect=2`
 
 Or run the bundled Nim adventurer pilot against the same `/player` route:
 
