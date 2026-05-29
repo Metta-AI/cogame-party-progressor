@@ -111,7 +111,12 @@ proc httpHandler(request: Request) {.gcsafe.} =
       request.respond(404, textHeaders(), "client not found\n")
     return
 
-  if request.path in [SnappyClientRoute, QrcodeClientRoute] and request.httpMethod == "GET":
+  if request.path in [
+      SnappyClientRoute,
+      SnappyClientPath,
+      QrcodeClientRoute,
+      QrcodeClientPath
+    ] and request.httpMethod == "GET":
     try:
       request.respond(
         200,
