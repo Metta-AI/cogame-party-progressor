@@ -91,11 +91,12 @@ Quest is responsible for:
 - Quest-specific docs and future reference bots
 
 The current Quest surface code lives in `src/tribal_quest/player_surface.nim`.
-It consumes the shared Fortress grid state and sends BitWorld `sprite_v1`
-packets for `/client/player`. Terrain, resources, buildings, units, wildlife,
-and hostile entities are rendered as grid objects using the shared Fortress data
-asset keys. The old 128 x 128 packed-pixel protocol is retained only as
-`protocol=pixel` debug compatibility and `/client/pixel`.
+It consumes the shared Fortress grid state and sends `sprite_v1` packets for
+`/client/player` through Quest's vendored player client. Terrain, resources,
+buildings, units, wildlife, and hostile entities are rendered as grid objects
+using the shared Fortress data asset keys. The old 128 x 128 packed-pixel
+protocol is retained only as `protocol=pixel` debug compatibility and
+`/client/pixel`.
 
 Quest should not duplicate Fortress world simulation code.
 
@@ -141,7 +142,8 @@ The JSON compatibility form is:
 {"type":"adventurer.buttons","buttons":33}
 ```
 
-Button bits match BitWorld:
+Button bits are Quest's vendored player mask contract, kept compatible with the
+historic Coworld/BitWorld values:
 
 - `up = 1`
 - `down = 2`
@@ -184,7 +186,7 @@ full-map payloads.
 
 Quest `/client/player` is the adventurer gridworld view:
 
-- protocol: BitWorld `sprite_v1`
+- protocol: `sprite_v1`
 - crop: `21 x 21` tiles centered on the claimed adventurer
 - tile size: `16 x 16` pixels
 - viewport: `336 x 336` pixels
@@ -216,10 +218,9 @@ parallel Quest simulation.
 Quest-side checks:
 
 ```sh
-BITWORLD_PATH=${BITWORLD_PATH:-$(pwd)/../bitworld}
-nim r --path:../src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH tests/tests.nim
+nim r --path:src tests/tests.nim
 TRIBAL_FORTRESS_PATH=${TRIBAL_FORTRESS_PATH:-$(pwd)/../coworld-tribal-fortress}
-nim c --path:src --path:$BITWORLD_PATH/src --path:$BITWORLD_PATH --path:$TRIBAL_FORTRESS_PATH/src -o:out/tribal_quest src/tribal_quest.nim
+nim c --path:src --path:$TRIBAL_FORTRESS_PATH/src -o:out/tribal_quest src/tribal_quest.nim
 git diff --check
 ```
 

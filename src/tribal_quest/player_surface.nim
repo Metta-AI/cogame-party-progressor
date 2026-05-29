@@ -1,11 +1,11 @@
 import
   std/[json, locks, monotimes, os, sets, strutils, tables, times],
   mummy,
-  bitworld/client,
-  bitworld/protocol,
   tribal_village_engine,
+  tribal_quest/client,
   tribal_quest/fortress_engine,
   tribal_quest/gridworld_sprites,
+  tribal_quest/protocol,
   tribal_quest/sprite_packets
 
 const
@@ -219,18 +219,14 @@ proc handleQuestAdventurerHttp*(request: Request): bool {.gcsafe.} =
       request.respond(404, textHeaders(), "client not found\n")
     return
 
-  if request.path in [
-      SnappyClientRoute,
-      SnappyClientPath,
-      QrcodeClientRoute,
-      QrcodeClientPath
-    ] and request.httpMethod == "GET":
+  if request.path in [SnappyClientRoute, SnappyClientPath] and
+      request.httpMethod == "GET":
     result = true
     try:
       request.respond(
         200,
         textHeaders(clientStaticContentType(request.path)),
-        readFile(clientStaticPath(request.path))
+        clientStaticBody(request.path)
       )
     except IOError:
       request.respond(404, textHeaders(), "asset not found\n")

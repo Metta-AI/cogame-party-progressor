@@ -1,7 +1,7 @@
 import std/[json, os, sets]
 
-import bitworld/protocol
 import tribal_quest/fortress_engine
+import tribal_quest/protocol
 import tribal_quest/sprite_packets
 
 const RootDir = currentSourcePath.parentDir.parentDir

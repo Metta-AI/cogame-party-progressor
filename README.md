@@ -19,12 +19,9 @@ Fortress host imports it.
 Use a sibling Fortress checkout while the shared runtime is local:
 
 ```sh
-BITWORLD_PATH=${BITWORLD_PATH:-$(pwd)/../bitworld}
 TRIBAL_FORTRESS_PATH=${TRIBAL_FORTRESS_PATH:-$(pwd)/../coworld-tribal-fortress}
 nim c \
   --path:src \
-  --path:$BITWORLD_PATH/src \
-  --path:$BITWORLD_PATH \
   --path:$TRIBAL_FORTRESS_PATH/src \
   -o:out/tribal_quest \
   src/tribal_quest.nim
@@ -36,8 +33,8 @@ Open:
 - `http://127.0.0.1:2000/client/player?slot=0&name=human&reconnect=2`
 
 `/client/player` is the canonical sprite-based adventurer gridworld view. It
-uses the shared Fortress terrain/entity state and renders BitWorld `sprite_v1`
-packets centered on the controlled adventurer.
+uses the shared Fortress terrain/entity state and renders `sprite_v1` packets
+through Quest's vendored player client centered on the controlled adventurer.
 
 The old packed-pixel stream is debug compatibility only:
 
@@ -48,8 +45,6 @@ Or run the bundled Nim adventurer pilot against the same `/player` route:
 ```sh
 nim c \
   --path:src \
-  --path:$BITWORLD_PATH/src \
-  --path:$BITWORLD_PATH \
   -o:out/tribal_quest_adventurer \
   players/adventurer/adventurer.nim
 ./out/tribal_quest_adventurer --address:127.0.0.1 --port:2000 --slot:0 --ticks:80
@@ -79,7 +74,7 @@ Optional config fields:
 - targets a 768 by 480 Fortress world with 30 town agents per team
 - caps Quest adventurer slots at 64
 - forwards button masks through the typed Fortress engine API
-- renders the local adventurer grid as BitWorld `sprite_v1` packets without JSON
+- renders the local adventurer grid as `sprite_v1` packets without JSON
   in the tick loop
 - resolves sprites from the shared Fortress `data/` asset set and uses visible
   placeholders for missing art
@@ -94,6 +89,9 @@ not a second runtime in this repo.
   Fortress engine and installs the Quest `/player` adventurer surface.
 - `src/tribal_quest/player_surface.nim` owns the Quest `/player` websocket and
   exposes mount hooks for a host-owned Fortress engine.
+- `src/tribal_quest/client.nim`, `src/tribal_quest/protocol.nim`, and
+  `src/tribal_quest/client_assets/` are the vendored browser/protocol shim for
+  Quest's player surface.
 - `src/tribal_quest/fortress_engine.nim` contains the Quest-side adapter
   contract.
 - `players/adventurer/adventurer.nim` is the bundled Nim websocket pilot.

@@ -28,24 +28,17 @@ ENV PATH="/root/.nimby/nim/bin:$PATH"
 WORKDIR /workspace/coworld-tribal-quest
 COPY tribal_quest.nimble .
 RUN nimble refresh && \
-  nimble install -y https://github.com/Metta-AI/bitworld.git && \
   nimble install -y https://github.com/Metta-AI/coworld-tribal-fortress.git && \
   nimble install -y --depsOnly
 
 COPY . .
-RUN mkdir -p /workspace/bitworld-assets && \
-  bitworld_path="$(nimble path bitworld | head -n 1)" && \
-  cp -R "$bitworld_path/client" /workspace/bitworld-assets/client
 
 ARG NimFlags="-d:release -d:useMalloc --opt:speed --stackTrace:on"
 ARG NimCommand="c"
 ARG NimMain="src/tribal_quest.nim"
-RUN bitworld_path="$(nimble path bitworld | head -n 1)" && \
-  fortress_path="$(nimble path tribal_village | head -n 1)" && \
+RUN fortress_path="$(nimble path tribal_village | head -n 1)" && \
   nim $NimCommand \
   $NimFlags \
-  --path:"$bitworld_path" \
-  --path:"$bitworld_path/src" \
   --path:"$fortress_path" \
   --path:"$fortress_path/src" \
   --path:src \
@@ -62,7 +55,6 @@ RUN apt-get update && \
 
 WORKDIR /workspace/coworld-tribal-quest
 COPY --from=build /bin/tribal_quest /bin/tribal_quest
-COPY --from=build /workspace/bitworld-assets/client ./client
 COPY coworld_manifest.json .
 
 EXPOSE 8080

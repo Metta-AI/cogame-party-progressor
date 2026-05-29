@@ -3,7 +3,7 @@ import std/[parseopt, strutils, uri]
 import asyncdispatch
 import ws
 
-import bitworld/protocol
+import tribal_quest/protocol
 
 type
   BotError = object of CatchableError

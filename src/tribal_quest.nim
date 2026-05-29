@@ -1,10 +1,10 @@
 import std/[httpclient, json, os, parseopt, strutils]
 
-import bitworld/protocol
 import jsony
 import tribal_village_engine
 import tribal_quest/fortress_engine
 import tribal_quest/player_surface
+import tribal_quest/protocol
 
 type
   TribalQuestError = object of CatchableError
