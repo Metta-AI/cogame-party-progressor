@@ -42,13 +42,18 @@ proc initFortressEngine*(config: FortressEngineConfig): FortressEngine
 proc close*(engine: var FortressEngine)
 proc claimAdventurer*(engine: var FortressEngine, slot: int, teamId = -1): int
 proc releaseAdventurer*(engine: var FortressEngine, slot: int): bool
+proc submitAdventurerButtons*(engine: var FortressEngine, slot: int, mask: uint8)
+proc submitAdventurerAction*(engine: var FortressEngine, slot: int, action: uint16)
 proc submitAdventurerInput*(engine: var FortressEngine, slot: int, payloadJson: string)
 proc step*(engine: var FortressEngine)
+proc adventurerViewCells*(engine: FortressEngine, slot: int, cells: var openArray[uint8]): FortressAdventurerView
 proc adventurerObservationJson*(engine: FortressEngine, slot: int): string
 ```
 
 That API owns worldgen, terrain, civilizations, NPC policies, claim tracking,
 action decoding, stepping, and local crop export.
+Quest should use the typed button and crop APIs in its live tick loop. The JSON
+input and observation APIs are compatibility/debug surfaces, not the hot path.
 
 ## Quest Must Provide
 
@@ -59,20 +64,21 @@ Quest is responsible for:
 
 - token-to-adventurer-slot binding
 - websocket lifecycle for `/player`
-- converting player input masks to engine payload JSON
+- forwarding player input masks to the typed engine button API
 - rendering or adapting the adventurer-centered view
 - Quest scoring and replay output
 - Quest-specific docs and future reference bots
 
 The current Quest surface code lives in `src/tribal_quest/player_surface.nim`.
-It consumes `adventurerObservationJson` crops and packs them into the existing
-BitWorld 128 x 128 player frame protocol.
+It consumes typed `adventurerViewCells` crops and packs them into the existing
+BitWorld 128 x 128 player frame protocol without JSON in the tick loop.
 
 Quest should not duplicate Fortress world simulation code.
 
 ## Action Contract
 
-Quest forwards player input as button masks:
+Quest forwards player input as button masks through `submitAdventurerButtons`.
+The JSON compatibility form is:
 
 ```json
 {"type":"adventurer.buttons","buttons":33}

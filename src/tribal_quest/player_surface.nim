@@ -9,6 +9,7 @@ import
 const
   PlayerSocketPath = "/player"
   StepMilliseconds = 100
+  QuestViewCells = QuestAdventureCropTiles * QuestAdventureCropTiles
 
 type
   ViewerState = object
@@ -150,29 +151,28 @@ proc websocketHandler(
 proc serverThreadProc(args: ServerThreadArgs) {.thread.} =
   args.server[].serve(Port(args.port), args.address)
 
-proc frameFromObservation(text: string): string =
-  var pixels = newSeq[uint8](ScreenWidth * ScreenHeight)
-  try:
-    let
-      node = parseJson(text)
-      view = node["view_plane"]
-      cells = view["cells"]
-      width = max(1, (if view.hasKey("width"): view["width"].getInt() else: QuestAdventureCropTiles))
-      height = max(1, (if view.hasKey("height"): view["height"].getInt() else: QuestAdventureCropTiles))
-    for py in 0 ..< ScreenHeight:
-      let cellY = min(height - 1, py * height div ScreenHeight)
-      for px in 0 ..< ScreenWidth:
-        let cellX = min(width - 1, px * width div ScreenWidth)
-        if cellY < cells.len and cellX < cells[cellY].len:
-          pixels[py * ScreenWidth + px] = uint8(cells[cellY][cellX].getInt() and 0x0f)
-  except CatchableError:
-    discard
-
+proc frameFromEngine(engine: var FortressEngine, slot: int): string =
   result = newString(ProtocolBytes)
-  for i in 0 ..< ProtocolBytes:
-    let lo = pixels[i * 2] and 0x0f
-    let hi = pixels[i * 2 + 1] and 0x0f
-    result[i] = char(lo or (hi shl 4))
+  var cells: array[QuestViewCells, uint8]
+  let view = engine.adventurerViewCells(slot, cells)
+  if not view.ok or view.done or view.width <= 0 or view.height <= 0:
+    return
+
+  var outIndex = 0
+  for py in 0 ..< ScreenHeight:
+    let
+      cellY = min(view.height - 1, py * view.height div ScreenHeight)
+      rowStart = cellY * view.width
+    var px = 0
+    while px < ScreenWidth:
+      let
+        cellX0 = min(view.width - 1, px * view.width div ScreenWidth)
+        cellX1 = min(view.width - 1, (px + 1) * view.width div ScreenWidth)
+        lo = cells[rowStart + cellX0] and 0x0f
+        hi = cells[rowStart + cellX1] and 0x0f
+      result[outIndex] = char(lo or (hi shl 4))
+      inc outIndex
+      px += 2
 
 proc pruneClosedViewers() =
   for websocket in surface.closedSockets:
@@ -186,12 +186,12 @@ proc stepAndBuildFrames(): seq[tuple[websocket: WebSocket, frame: string]] =
   withLock surface.lock:
     pruneClosedViewers()
     for _, viewer in surface.viewers.pairs:
-      surface.engine[].submitAdventurerInput(viewer.slot, adventurerInputJson(viewer.lastMask))
+      surface.engine[].submitAdventurerButtons(viewer.slot, viewer.lastMask)
     surface.engine[].step()
     for websocket, viewer in surface.viewers.pairs:
       result.add((
         websocket: websocket,
-        frame: frameFromObservation(surface.engine[].adventurerObservationJson(viewer.slot))
+        frame: surface.engine[].frameFromEngine(viewer.slot)
       ))
 
 proc writeJsonFile(path: string, node: JsonNode) =
