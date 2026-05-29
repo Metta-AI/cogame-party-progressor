@@ -29,6 +29,18 @@ Open:
 
 - `http://localhost:2000/client/player?address=ws://localhost:2000/player&name=human`
 
+Or run the bundled Nim adventurer pilot against the same `/player` route:
+
+```sh
+nim c \
+  --path:src \
+  --path:$BITWORLD_PATH/src \
+  --path:$BITWORLD_PATH \
+  -o:out/tribal_quest_adventurer \
+  players/adventurer/adventurer.nim
+./out/tribal_quest_adventurer --address:127.0.0.1 --port:2000 --slot:0 --ticks:80
+```
+
 Quest expects the Fortress checkout on the Nim path to expose
 `tribal_village_engine`. Quest calls that Nim engine directly from its own
 `/player` server.
@@ -65,5 +77,6 @@ not a second runtime in this repo.
   packs Fortress adventurer crops into BitWorld frames.
 - `src/tribal_quest/fortress_engine.nim` contains the Quest-side adapter
   contract.
+- `players/adventurer/adventurer.nim` is the bundled Nim websocket pilot.
 - `plan.md` is the integration source of truth for the Quest half.
 - `tests/tests.nim` contains lean adapter-contract checks.
