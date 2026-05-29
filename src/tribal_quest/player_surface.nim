@@ -211,8 +211,14 @@ proc pruneClosedViewers() =
   for websocket in surface.closedSockets:
     if websocket in surface.viewers:
       let slot = surface.viewers[websocket].slot
-      discard surface.engine[].releaseAdventurer(slot)
       surface.viewers.del(websocket)
+      var slotStillViewed = false
+      for _, viewer in surface.viewers.pairs:
+        if viewer.slot == slot:
+          slotStillViewed = true
+          break
+      if not slotStillViewed:
+        discard surface.engine[].releaseAdventurer(slot)
   surface.closedSockets.setLen(0)
 
 proc submitQuestAdventurerInputs*() =
