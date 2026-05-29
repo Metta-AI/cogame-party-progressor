@@ -1,7 +1,8 @@
-import std/[json, os]
+import std/[json, os, sets]
 
 import bitworld/protocol
 import tribal_quest/fortress_engine
+import tribal_quest/sprite_packets
 
 const RootDir = currentSourcePath.parentDir.parentDir
 
@@ -31,6 +32,47 @@ proc testAdventurerInputPayloads() =
   let raw = parseJson(adventurerRawActionJson(17))
   doAssert raw["type"].getStr() == AdventurerActionType
   doAssert raw["action"].getInt() == 17
+
+  var parsedMask: uint8
+  doAssert playerMaskFromPacket("\x84" & char(mask), parsedMask)
+  doAssert parsedMask == mask
+  doAssert playerMaskFromPacket(blobFromMask(mask), parsedMask)
+  doAssert parsedMask == mask
+
+proc testSpritePacketConstruction() =
+  var
+    packet: seq[uint8] = @[]
+    known = initHashSet[int]()
+  let selected = generatedSprite(1, "selected player human")
+
+  packet.addClearObjects()
+  packet.addLayer(SpriteLayerMap, SpriteLayerTypeMap, SpriteLayerFlagZoomable)
+  packet.addViewport(SpriteLayerMap, QuestSpriteViewportPixels, QuestSpriteViewportPixels)
+  packet.addSpriteIfNeeded(known, selected)
+  packet.addObject(100, 10, 12, 20, SpriteLayerMap, selected.id)
+
+  let summary = parseSpritePacketSummary(packet.toPacketString())
+  doAssert summary.clearObjects == 1
+  doAssert summary.layerCount == 1
+  doAssert summary.viewportCount == 1
+  doAssert summary.viewportWidth == QuestSpriteViewportPixels
+  doAssert summary.viewportHeight == QuestSpriteViewportPixels
+  doAssert "selected player human" in summary.spriteLabels
+  doAssert selected.id in summary.definedSprites
+  for spriteId in summary.objectSpriteIds:
+    doAssert spriteId in summary.definedSprites
+
+proc testGeneratedSpritePlaceholder() =
+  let sprite = generatedSprite(7, "missing asset wolf")
+  doAssert sprite.id == 7
+  doAssert sprite.width == 16
+  doAssert sprite.height == 16
+  doAssert sprite.pixels.len == 16 * 16 * 4
+  var nonTransparent = 0
+  for i in countup(3, sprite.pixels.high, 4):
+    if sprite.pixels[i] != 0:
+      inc nonTransparent
+  doAssert nonTransparent > 0
 
 proc testAdventurerObservationParsing() =
   let observation = parseFortressAdventurerObservation($(%*{
@@ -119,6 +161,8 @@ proc testDefaultFortressPath() =
 when isMainModule:
   testFortressRuntimeIsRequired()
   testAdventurerInputPayloads()
+  testSpritePacketConstruction()
+  testGeneratedSpritePlaceholder()
   testAdventurerObservationParsing()
   testFortressEngineConfigValidation()
   testDefaultFortressPath()

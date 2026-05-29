@@ -86,13 +86,16 @@ Quest is responsible for:
 - token-to-adventurer-slot binding
 - websocket lifecycle for `/player`
 - forwarding player input masks to the typed engine button API
-- rendering or adapting the adventurer-centered view
+- rendering the adventurer-centered gridworld sprite view
 - Quest scoring and replay output
 - Quest-specific docs and future reference bots
 
 The current Quest surface code lives in `src/tribal_quest/player_surface.nim`.
-It consumes typed `adventurerViewCells` crops and packs them into the existing
-BitWorld 128 x 128 player frame protocol without JSON in the tick loop.
+It consumes the shared Fortress grid state and sends BitWorld `sprite_v1`
+packets for `/client/player`. Terrain, resources, buildings, units, wildlife,
+and hostile entities are rendered as grid objects using the shared Fortress data
+asset keys. The old 128 x 128 packed-pixel protocol is retained only as
+`protocol=pixel` debug compatibility and `/client/pixel`.
 
 Quest should not duplicate Fortress world simulation code.
 
@@ -126,6 +129,12 @@ Quest inputs, steps the engine, and sends Quest frames in one call.
 ## Action Contract
 
 Quest forwards player input as button masks through `submitAdventurerButtons`.
+The canonical sprite client sends the `sprite_v1` player input packet:
+
+```text
+0x84 <button-mask>
+```
+
 The JSON compatibility form is:
 
 ```json
@@ -171,13 +180,35 @@ fields Quest can parse:
 `view_plane` and `sprite_view` are local adventurer-centered crops. They are not
 full-map payloads.
 
+## Rendering Contract
+
+Quest `/client/player` is the adventurer gridworld view:
+
+- protocol: BitWorld `sprite_v1`
+- crop: `21 x 21` tiles centered on the claimed adventurer
+- tile size: `16 x 16` pixels
+- viewport: `336 x 336` pixels
+- layers: map layer first, optional UI/status layers later
+- asset source: Fortress `data/` using registry-compatible sprite keys
+
+Missing assets must produce visible placeholder sprites with stable labels.
+Invalid, dormant, or dead adventurer states must render a visible status frame,
+not an all-black canvas.
+
+Quest-only art should be limited to adventurer presentation overlays such as
+selection rings, target cursors, and status markers. Old Party Progressor
+assets and mechanics should be incorporated as shared Fortress grid assets,
+entities, enemies, terrain features, items, and engine actions rather than as a
+parallel Quest simulation.
+
 ## Defaults
 
 - world runtime: `fortress`
 - world size: `768 x 480`
 - town agents per team: `30`
 - adventurer slots: `64`
-- Quest tactical crop: `11 x 11`
+- Quest adventurer crop: `21 x 21`
+- Quest sprite tile size: `16 px`
 - default adventurer role: `adventurer`
 
 ## Validation

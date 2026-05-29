@@ -28,7 +28,7 @@ proc parseOptionInt(name, value: string): int =
 
 proc playerUrl(config: BotConfig): string =
   result = "ws://" & config.address & ":" & $config.port &
-    "/player?slot=" & $config.slot
+    "/player?protocol=pixel&slot=" & $config.slot
   if config.token.len > 0:
     result.add("&token=" & encodeUrl(config.token))
 

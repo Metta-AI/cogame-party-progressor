@@ -8,7 +8,9 @@ const
   FortressTownTokenSlots* = 8
   FortressTownAgentsPerTeam* = 30
   FortressAdventurerSlots* = 64
-  QuestAdventureCropTiles* = 11
+  QuestAdventureCropTiles* = 21
+  QuestSpriteTilePixels* = 16
+  QuestSpriteViewportPixels* = QuestAdventureCropTiles * QuestSpriteTilePixels
   QuestBitWorldScreenPixels* = 128
   AdventurerButtonsType* = "adventurer.buttons"
   AdventurerActionType* = "adventurer.action"

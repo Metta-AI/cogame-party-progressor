@@ -35,6 +35,14 @@ Open:
 
 - `http://127.0.0.1:2000/client/player?slot=0&name=human&reconnect=2`
 
+`/client/player` is the canonical sprite-based adventurer gridworld view. It
+uses the shared Fortress terrain/entity state and renders BitWorld `sprite_v1`
+packets centered on the controlled adventurer.
+
+The old packed-pixel stream is debug compatibility only:
+
+- `http://127.0.0.1:2000/client/pixel?slot=0&name=human&reconnect=2`
+
 Or run the bundled Nim adventurer pilot against the same `/player` route:
 
 ```sh
@@ -71,7 +79,10 @@ Optional config fields:
 - targets a 768 by 480 Fortress world with 30 town agents per team
 - caps Quest adventurer slots at 64
 - forwards button masks through the typed Fortress engine API
-- packs typed local crop cells into BitWorld frames without JSON in the tick loop
+- renders the local adventurer grid as BitWorld `sprite_v1` packets without JSON
+  in the tick loop
+- resolves sprites from the shared Fortress `data/` asset set and uses visible
+  placeholders for missing art
 
 The old Party Progressor mechanics are now product reference material for what
 should move into the Fortress engine or Quest adventurer presentation. They are

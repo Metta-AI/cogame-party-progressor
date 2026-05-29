@@ -373,6 +373,7 @@ when isMainModule:
   config.echoStartupPaths()
 
   let questEngineConfig = config.fortressEngineConfig()
+  putEnv(FortressEnginePathEnv, questEngineConfig.path)
   var engine = tribal_village_engine.initFortressEngine(
     tribal_village_engine.FortressEngineConfig(
       maxSteps: config.fortressMaxSteps(),

@@ -1,15 +1,23 @@
 import
-  std/[json, locks, monotimes, os, strutils, tables, times],
+  std/[json, locks, monotimes, os, sets, strutils, tables, times],
   mummy,
   bitworld/client,
   bitworld/protocol,
   tribal_village_engine,
-  tribal_quest/fortress_engine
+  tribal_quest/fortress_engine,
+  tribal_quest/gridworld_sprites,
+  tribal_quest/sprite_packets
 
 const
   PlayerSocketPath = "/player"
   StepMilliseconds = 100
   QuestViewCells = QuestAdventureCropTiles * QuestAdventureCropTiles
+  PixelClientRoute = "/client/pixel"
+
+type
+  QuestPlayerProtocol = enum
+    PlayerProtocolSprite
+    PlayerProtocolPixel
 
 type
   QuestPlayerFrame* = tuple[websocket: WebSocket, frame: string]
@@ -17,6 +25,8 @@ type
   ViewerState = object
     slot: int
     lastMask: uint8
+    protocol: QuestPlayerProtocol
+    knownSprites: HashSet[int]
 
   SurfaceState = object
     lock: Lock
@@ -24,6 +34,7 @@ type
     tokens: seq[string]
     viewers: Table[WebSocket, ViewerState]
     closedSockets: seq[WebSocket]
+    spriteRegistry: QuestSpriteRegistry
 
   ServerThreadArgs = object
     server: ptr Server
@@ -39,6 +50,19 @@ proc queryValue(request: Request, key: string): string =
   if key in request.queryParams:
     return request.queryParams[key]
   ""
+
+proc headerContainsToken(request: Request, key, token: string): bool =
+  let expected = token.toLowerAscii()
+  for (headerKey, headerValue) in request.headers:
+    if cmpIgnoreCase(headerKey, key) == 0:
+      for part in headerValue.split(','):
+        if part.strip().toLowerAscii() == expected:
+          return true
+  false
+
+proc isWebSocketUpgrade(request: Request): bool =
+  request.headerContainsToken("Connection", "Upgrade") and
+    request.headerContainsToken("Upgrade", "websocket")
 
 proc parseSlot(raw: string): int =
   if raw.len == 0:
@@ -86,6 +110,25 @@ proc claimViewerSlot(request: Request): int =
   if surface.engine.isNil or result < 0 or result >= surface.engine[].adventurerSlots:
     return -1
 
+proc parsePlayerProtocol(request: Request): int =
+  case request.queryValue("protocol").strip().toLowerAscii()
+  of "", "sprite", "sprite-v1", "sprite_v1":
+    ord(PlayerProtocolSprite)
+  of "pixel", "bitscreen", "bitscreen-v1", "bitscreen_v1":
+    ord(PlayerProtocolPixel)
+  else:
+    -1
+
+proc playerClientHtml(protocol: QuestPlayerProtocol): string =
+  result = readClientHtml(PlayerClientRoute)
+  if protocol == PlayerProtocolPixel:
+    result = result.replace("m+\"/player\"", "m+\"/player?protocol=pixel\"")
+
+proc upgradeRequiredHeaders(): HttpHeaders =
+  result = textHeaders()
+  result["Connection"] = "Upgrade"
+  result["Upgrade"] = "websocket"
+
 proc handleQuestAdventurerHttp*(request: Request): bool {.gcsafe.} =
   ## Handles Quest-owned adventurer routes for a host that already owns
   ## the Fortress engine/world. Returns false when the route is not ours.
@@ -97,6 +140,17 @@ proc handleQuestAdventurerHttp*(request: Request): bool {.gcsafe.} =
         textHeaders(),
         "Quest adventurer surface is not initialized\n"
       )
+      return
+    if not request.isWebSocketUpgrade():
+      request.respond(
+        426,
+        upgradeRequiredHeaders(),
+        "websocket upgrade required\n"
+      )
+      return
+    let protocolIndex = request.parsePlayerProtocol()
+    if protocolIndex < 0:
+      request.respond(400, textHeaders(), "invalid player protocol\n")
       return
     {.gcsafe.}:
       withLock surface.lock:
@@ -112,17 +166,27 @@ proc handleQuestAdventurerHttp*(request: Request): bool {.gcsafe.} =
           request.respond(409, textHeaders(), "could not claim adventurer\n")
           return
         let websocket = request.upgradeToWebSocket()
-        surface.viewers[websocket] = ViewerState(slot: slot, lastMask: 0)
+        surface.viewers[websocket] = ViewerState(
+          slot: slot,
+          lastMask: 0,
+          protocol: QuestPlayerProtocol(protocolIndex),
+          knownSprites: initHashSet[int]()
+        )
     return
 
-  if request.path in [PlayerClientRoute, PlayerClientHtmlRoute] and
+  if request.path in [PlayerClientRoute, PlayerClientHtmlRoute, PixelClientRoute] and
       request.httpMethod == "GET":
     result = true
     try:
+      let protocol =
+        if request.path == PixelClientRoute:
+          PlayerProtocolPixel
+        else:
+          PlayerProtocolSprite
       request.respond(
         200,
         textHeaders(clientStaticContentType(request.path)),
-        readClientHtml(request.path)
+        playerClientHtml(protocol)
       )
     except IOError:
       request.respond(404, textHeaders(), "client not found\n")
@@ -167,8 +231,12 @@ proc handleQuestAdventurerWebSocket*(
         withLock surface.lock:
           if websocket in surface.viewers:
             var viewer = surface.viewers[websocket]
-            viewer.lastMask = blobToMask(message.data)
-            surface.viewers[websocket] = viewer
+            var mask: uint8
+            if playerMaskFromPacket(message.data, mask):
+              viewer.lastMask = mask
+              surface.viewers[websocket] = viewer
+            elif message.data.isTextInputPacket():
+              discard
   of ErrorEvent, CloseEvent:
     {.gcsafe.}:
       withLock surface.lock:
@@ -237,10 +305,20 @@ proc buildQuestAdventurerFrames*(): seq[QuestPlayerFrame] =
     raise newException(ValueError, "Quest adventurer surface is not initialized")
   withLock surface.lock:
     pruneClosedViewers()
-    for websocket, viewer in surface.viewers.pairs:
+    for websocket, viewer in surface.viewers.mpairs:
+      let frame =
+        case viewer.protocol
+        of PlayerProtocolSprite:
+          surface.engine[].buildAdventurerSpriteFrame(
+            viewer.slot,
+            surface.spriteRegistry,
+            viewer.knownSprites
+          )
+        of PlayerProtocolPixel:
+          surface.engine[].frameFromEngine(viewer.slot)
       result.add((
         websocket: websocket,
-        frame: surface.engine[].frameFromEngine(viewer.slot)
+        frame: frame
       ))
 
 proc stepAndBuildFrames(): seq[QuestPlayerFrame] =
@@ -292,6 +370,7 @@ proc initQuestAdventurerSurface*(
   surface.tokens = tokens
   surface.viewers = initTable[WebSocket, ViewerState]()
   surface.closedSockets = @[]
+  surface.spriteRegistry = initQuestSpriteRegistry()
 
 proc runQuestPlayerSurface*(
   engine: var FortressEngine,
